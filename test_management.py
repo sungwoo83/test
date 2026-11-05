@@ -143,3 +143,61 @@ class ManagementFlow(unittest.TestCase):
         self.assertEqual(result.returncode,0,result.stderr)
         with app.connect() as db:
             self.assertEqual(db.execute("SELECT role FROM users WHERE employee_id='ai-worker'").fetchone()[0],'superadmin')
+
+    def test_superadmin_password_reset_hash_and_session_revocation(self):
+        from unittest.mock import patch
+        import manage
+        # This is a synthetic test password, unrelated to deployed credentials.
+        password='테스트12!'
+        argv=['manage.py','set-superadmin-password','--employee-id','super','--db',str(app.DB)]
+        with patch.object(sys,'argv',argv),patch.object(manage.getpass,'getpass',side_effect=[password,password]),patch('builtins.print'):
+            manage.main()
+        self.cookie=self.super_cookie
+        self.assertEqual(self.request('/api/me')[0],401)
+        self.cookie=''
+        self.assertEqual(self.request('/api/login',{'employee_id':'super','password':self.password})[0],401)
+        self.assertEqual(self.request('/api/login',{'employee_id':'super','password':password})[0],200)
+        with app.connect() as db:
+            stored=db.execute("SELECT password_hash FROM users WHERE employee_id='super'").fetchone()[0]
+            audit=dict(db.execute("SELECT * FROM audit_log WHERE action='수퍼관리자 비밀번호 설정'").fetchone())
+            self.assertNotIn(password,stored)
+            self.assertNotIn(password,json.dumps(audit,ensure_ascii=False))
+            self.assertNotIn(stored,json.dumps(audit,ensure_ascii=False))
+
+    def test_managers_cannot_delegate_admin_role(self):
+        self.cookie=self.manager
+        self.assertEqual(self.post('/api/admin/role',{'employee_id':'worker','role':'admin','admin_department_id':self.a['id'],'reason':'관리자 지정 시도'})[0],403)
+        self.cookie=self.worker
+        self.assertEqual(self.post('/api/admin/role',{'employee_id':'worker','role':'admin','admin_department_id':self.a['id'],'reason':'본인 권한 변경 시도'})[0],403)
+        with app.connect() as db:
+            self.assertEqual(db.execute("SELECT role FROM users WHERE employee_id='worker'").fetchone()[0],'employee')
+
+    def test_first_superadmin_can_be_created_without_signup(self):
+        from unittest.mock import patch
+        import manage
+        department=next((d for d in app.CATALOG['departments'] if d['name']=='AI정보융합실'),None)
+        if not department:self.skipTest('예시 데이터에는 AI정보융합실이 없습니다.')
+        with app.connect() as db:db.execute("UPDATE users SET role='employee' WHERE role='superadmin'")
+        password='테스트12!'
+        argv=['manage.py','create-superadmin','--employee-id','first-admin','--department-id',department['id'],'--db',str(app.DB)]
+        with patch.object(sys,'argv',argv),patch.object(manage.getpass,'getpass',side_effect=[password,password]),patch('builtins.print'):
+            manage.main()
+        self.cookie=''
+        self.assertEqual(self.request('/api/login',{'employee_id':'first-admin','password':password})[0],200)
+        self.assertEqual(self.request('/api/me')[1]['user']['role'],'superadmin')
+        self.assertEqual(self.request('/api/admin/users')[0],200)
+
+    def test_additional_superadmin_name_and_existing_admins_preserved(self):
+        from unittest.mock import patch
+        import manage
+        password='테스트12!'
+        argv=['manage.py','add-superadmin','--employee-id','second-admin','--department-id','SYS-PERFORMANCE','--name','테스트담당','--db',str(app.DB)]
+        with patch.object(sys,'argv',argv),patch.object(manage.getpass,'getpass',side_effect=[password,password]),patch('builtins.print'):
+            manage.main()
+        self.cookie=''
+        self.assertEqual(self.request('/api/login',{'employee_id':'second-admin','password':password})[0],200)
+        me=self.request('/api/me')[1]['user']
+        self.assertEqual(me['display_name'],'테스트담당')
+        self.assertEqual(me['role'],'superadmin')
+        with app.connect() as db:
+            self.assertEqual(db.execute("SELECT role FROM users WHERE employee_id='super'").fetchone()[0],'superadmin')
