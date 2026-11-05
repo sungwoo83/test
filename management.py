@@ -48,6 +48,10 @@ def effective_catalog(db, base):
         items.append({**item, **definition, 'revision':revision})
     return {**base,'indicators':items}
 
+def can_be_superadmin(department_id, catalog):
+    return any(d['id'] == department_id and d['name'] in ('성과혁신실', 'AI정보융합실')
+               for d in catalog['departments'])
+
 def require_super(user):
     if user['role'] != 'superadmin':
         raise APIError(403,'수퍼관리자만 사용할 수 있습니다.')
@@ -131,8 +135,8 @@ def post(db,user,path,data,catalog,available):
             raise APIError(400,'직원과 권한을 확인해 주세요.')
         if role=='admin' and not any(d['id']==department and d['kind']!='운영' for d in catalog['departments']):
             raise APIError(400,'관리할 평가대상 부서를 지정해 주세요.')
-        if role=='superadmin' and target['department_id']!='SYS-PERFORMANCE':
-            raise APIError(400,'수퍼관리자는 성과혁신실 소속 계정에 지정해 주세요.')
+        if role=='superadmin' and not can_be_superadmin(target['department_id'], catalog):
+            raise APIError(400,'수퍼관리자는 성과혁신실 또는 AI정보융합실 소속 계정에 지정해 주세요.')
         if target['role']=='superadmin' and role!='superadmin' and db.execute("SELECT COUNT(*) FROM users WHERE role='superadmin'").fetchone()[0]<=1:
             raise APIError(409,'마지막 수퍼관리자는 해제할 수 없습니다.')
         before={k:target[k] for k in ('role','admin_department_id')};after={'role':role,'admin_department_id':department}
