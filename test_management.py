@@ -111,3 +111,35 @@ class ManagementFlow(unittest.TestCase):
                     self.assertEqual(row['employee_id'],'legacy')
         finally:
             app.DB=original_db
+
+    def register_ai_employee(self):
+        department=next((d for d in app.CATALOG['departments'] if d['name']=='AI정보융합실'),None)
+        if department is None:
+            self.skipTest('예시 데이터에는 AI정보융합실이 없습니다.')
+        self.cookie=''
+        ids=[k['id'] for k in app.available(department['id'])[:1]]
+        self.assertEqual(self.request('/api/register',{'employee_id':'ai-worker','password':self.password,'department_id':department['id'],'indicators':ids,'role':'superadmin'})[0],200)
+        self.assertEqual(self.request('/api/me')[1]['user']['role'],'employee')
+        return department,ids
+
+    def test_ai_department_superadmin_assignment_and_profile(self):
+        department,ids=self.register_ai_employee()
+        self.cookie=self.super_cookie
+        self.assertEqual(self.post('/api/admin/role',{'employee_id':'worker','role':'superadmin','reason':'다른 부서 거절 확인'})[0],400)
+        self.assertEqual(self.post('/api/admin/role',{'employee_id':'ai-worker','role':'superadmin','reason':'AI정보융합실 담당자 지정'})[0],200)
+        self.cookie=''
+        self.assertEqual(self.request('/api/login',{'employee_id':'ai-worker','password':self.password})[0],200)
+        me=self.request('/api/me')[1]
+        self.assertEqual(me['user']['role'],'superadmin')
+        self.assertEqual(self.request('/api/admin/users')[0],200)
+        self.assertEqual(self.post('/api/profile',{'department_id':department['id'],'indicators':ids,'revision':me['user']['revision']})[0],200)
+        self.assertEqual(self.post('/api/profile',{'department_id':self.b['id'],'indicators':self.kb,'revision':me['user']['revision']})[0],409)
+
+    def test_ai_department_first_superadmin_bootstrap(self):
+        self.register_ai_employee()
+        with app.connect() as db:
+            db.execute("UPDATE users SET role='employee' WHERE employee_id='super'")
+        result=subprocess.run([sys.executable,str(Path(app.__file__).parent/'manage.py'),'bootstrap-superadmin','--db',str(app.DB),'--employee-id','ai-worker'],capture_output=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        with app.connect() as db:
+            self.assertEqual(db.execute("SELECT role FROM users WHERE employee_id='ai-worker'").fetchone()[0],'superadmin')
