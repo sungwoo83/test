@@ -13,7 +13,7 @@ def stamp():
 
 def initialize(db):
     columns = {r['name'] for r in db.execute('PRAGMA table_info(users)')}
-    for name, declaration in [('role', "TEXT NOT NULL DEFAULT 'employee'"), ('admin_department_id', 'TEXT')]:
+    for name, declaration in [('role', "TEXT NOT NULL DEFAULT 'employee'"), ('admin_department_id', 'TEXT'), ('display_name', "TEXT NOT NULL DEFAULT ''")]:
         if name not in columns:
             db.execute(f'ALTER TABLE users ADD COLUMN {name} {declaration}')
     db.executescript('''
@@ -104,7 +104,7 @@ def period(db, department, year, month):
 def get(db,user,path,params,catalog,available):
     if path=='/api/admin/users':
         require_super(user)
-        return {'users':[dict(r) for r in db.execute('SELECT employee_id,department_id,role,admin_department_id FROM users ORDER BY employee_id')]}
+        return {'users':[dict(r) for r in db.execute('SELECT employee_id,display_name,department_id,role,admin_department_id FROM users ORDER BY employee_id')]}
     if path=='/api/admin/indicators':
         require_super(user)
         return {'indicators':catalog['indicators']}
