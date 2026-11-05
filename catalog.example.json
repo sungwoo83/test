@@ -1,0 +1,72 @@
+{
+  "departments": [
+    {
+      "id": "DEMO-001",
+      "name": "예시 사무소 A",
+      "group": "가상 평가군",
+      "kind": "본사"
+    },
+    {
+      "id": "DEMO-002",
+      "name": "예시 사무소 B",
+      "group": "가상 평가군",
+      "kind": "본사"
+    }
+  ],
+  "indicators": [
+    {
+      "id": "DEMO-1-KPI-1",
+      "kind": "본사",
+      "applies_to": "예시 사무소 A",
+      "name": "예시 업무 수행률",
+      "category": "고유",
+      "type": "계량",
+      "page": "예시"
+    },
+    {
+      "id": "DEMO-1-KPI-2",
+      "kind": "본사",
+      "applies_to": "예시 사무소 A",
+      "name": "예시 개선 활동",
+      "category": "공통",
+      "type": "계량",
+      "page": "예시"
+    },
+    {
+      "id": "DEMO-1-KPI-3",
+      "kind": "본사",
+      "applies_to": "예시 사무소 A",
+      "name": "예시 업무 보고서",
+      "category": "공통",
+      "type": "비계량",
+      "page": "예시"
+    },
+    {
+      "id": "DEMO-2-KPI-1",
+      "kind": "본사",
+      "applies_to": "예시 사무소 B",
+      "name": "예시 업무 수행률",
+      "category": "고유",
+      "type": "계량",
+      "page": "예시"
+    },
+    {
+      "id": "DEMO-2-KPI-2",
+      "kind": "본사",
+      "applies_to": "예시 사무소 B",
+      "name": "예시 개선 활동",
+      "category": "공통",
+      "type": "계량",
+      "page": "예시"
+    },
+    {
+      "id": "DEMO-2-KPI-3",
+      "kind": "본사",
+      "applies_to": "예시 사무소 B",
+      "name": "예시 업무 보고서",
+      "category": "공통",
+      "type": "비계량",
+      "page": "예시"
+    }
+  ]
+}
