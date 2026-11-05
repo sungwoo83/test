@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>내부평가 성과관리</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<section id="auth" class="auth-shell">
+  <aside class="intro"><div class="brand"><span class="brand-icon">↗</span> 내부평가 성과관리</div><div class="intro-copy"><span class="eyebrow">2026 PERFORMANCE MANAGEMENT</span><h1>우리의 성과를<br>차곡차곡,<br><em>더 나은 내일로.</em></h1><p>부서의 목표와 담당지표를 한곳에서.<br>나의 근무지에 맞춘 성과관리를 시작하세요.</p><div class="intro-rule"></div><div class="intro-foot">01 &nbsp; 업무 설정 &nbsp; ─ &nbsp; 02 &nbsp; 나의 담당지표</div></div><div class="intro-bottom">내부망 업무 시스템 <span>● &nbsp; 2026</span></div></aside>
+  <main class="auth-main"><div class="auth-box"><span class="eyebrow dark">직원 전용 서비스</span><h2 id="auth-title">다시 만나 반갑습니다</h2><p class="muted" id="auth-description">사번으로 로그인하고 나의 업무를 확인하세요.</p>
+  <p id="demo-notice" class="notice" hidden>가상 예시 데이터로 실행 중입니다. 실제 내부자료는 포함되지 않았습니다.</p>
+  <div class="tabs" role="tablist" aria-label="접속 방식"><button id="login-tab" role="tab" aria-selected="true">로그인</button><button id="register-tab" role="tab" aria-selected="false">회원가입</button></div>
+  <form id="auth-form"><label for="employee">사번</label><input id="employee" name="employee" autocomplete="username" placeholder="사번을 입력해 주세요" pattern="[A-Za-z0-9_\-]{1,30}" maxlength="30" required><label for="password">비밀번호</label><input id="password" type="password" autocomplete="current-password" placeholder="비밀번호를 입력해 주세요" maxlength="128" required>
+  <div id="register-fields" hidden><label for="password-confirm">비밀번호 확인</label><input id="password-confirm" type="password" autocomplete="new-password" maxlength="128"><p class="hint">비밀번호는 10자 이상 입력해 주세요.</p><label for="register-department">근무지 · 사무소</label><select id="register-department"></select><div class="selection-heading"><label>담당지표 <span class="muted">복수 선택</span></label><span id="register-count" class="count">0개 선택</span></div><div id="register-indicators" class="check-list" role="group" aria-label="가입 시 담당지표"></div></div>
+  <p id="auth-error" class="error" role="alert"></p><button id="auth-submit" class="primary wide" type="submit">로그인 <span>→</span></button></form><p class="auth-note">설정한 근무지와 담당지표는 다음 로그인에도 유지됩니다.</p></div></main>
+</section>
+<section id="home" class="app-shell" hidden>
+  <aside class="sidebar"><div class="brand"><span class="brand-icon">↗</span><span>성과관리<small>PERFORMANCE</small></span></div><div class="year-chip">2026년도 내부평가</div><nav aria-label="주 메뉴"><a class="nav-active" href="#">⌂ &nbsp; 나의 업무 홈</a></nav><div class="side-bottom"><span class="status-dot"></span> 내부망 업무 시스템</div></aside>
+  <div class="workspace"><header><span>내부평가 <span class="breadcrumb">/ 나의 업무 홈</span></span><div class="header-right"><span id="header-employee"></span><button id="logout" class="text-button">로그아웃</button></div></header>
+  <main class="dashboard"><p id="home-demo-notice" class="notice" hidden>가상 예시 데이터 · 실제 내부자료가 아닙니다.</p><div class="page-heading"><div><span class="eyebrow dark">MY WORKSPACE</span><h1>나의 업무 홈</h1><p class="muted">나의 근무지와 담당지표를 확인하고 관리하세요.</p></div><span class="outline-badge">2026 내부경영실적평가</span></div>
+  <section class="profile-card"><div class="profile-icon">⌂</div><div class="profile-info"><span class="muted small">현재 근무지</span><h2 id="department-name"></h2><p id="department-group" class="muted"></p></div><button id="change-workplace" class="secondary">근무지 변경 ↗</button></section>
+  <div class="stats"><div><span class="muted">나의 담당지표</span><p><strong id="total-count">0</strong> 개</p></div><div><span class="muted">계량지표</span><p><strong id="quant-count">0</strong> 개</p></div><div><span class="muted">비계량지표</span><p><strong id="qual-count">0</strong> 개</p></div></div>
+  <section class="panel"><div class="panel-heading"><div><h2>나의 담당지표</h2><p class="muted small">현재 근무지에 설정된 업무 목록입니다.</p></div><button id="edit-indicators" class="secondary">담당지표 수정</button></div><div id="my-indicators"></div></section>
+  <section class="panel history-panel"><div class="panel-heading"><div><h2>근무지 · 담당지표 변경 이력</h2><p class="muted small">최근 20건 · 한국 표준시</p></div></div><div id="history"></div></section>
+  <p class="footnote">현재 제공 기능: 회원가입, 로그인, 근무지·담당지표 관리. 실적 입력·평가는 후속 개발 대상입니다.</p>
+  </main></div>
+</section>
+<dialog id="profile-dialog"><form id="profile-form"><div class="dialog-heading"><div><span class="eyebrow dark">WORKSPACE SETTINGS</span><h2 id="dialog-title">근무지 변경</h2></div><button id="close-dialog" class="icon-button" type="button" aria-label="닫기">×</button></div><p class="muted">새 근무지와 담당지표를 선택해 주세요.</p><div class="notice">근무지 변경 시 담당지표를 다시 선택합니다. 변경 전 설정은 이력에 보존됩니다.</div><label for="change-department">근무지 · 사무소</label><select id="change-department"></select><div class="selection-heading"><label>담당지표 <span class="muted">복수 선택</span></label><span id="change-count" class="count"></span></div><div id="change-indicators" class="check-list" role="group" aria-label="변경할 담당지표"></div><p id="profile-error" class="error" role="alert"></p><div class="dialog-actions"><button id="cancel-change" class="secondary" type="button">취소</button><button id="save-profile" class="primary" type="submit">변경사항 저장</button></div></form></dialog>
+<div id="toast" role="status" hidden></div>
+</body></html>
