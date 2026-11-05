@@ -230,8 +230,8 @@ class Handler(BaseHTTPRequestHandler):
                     row = db.execute('SELECT * FROM users WHERE employee_id=?', (session['employee_id'],)).fetchone()
                     if data.get('revision') != row['revision']:
                         return self.reply(409, {'error': '다른 화면에서 설정이 변경되었습니다. 새로고침해 주세요.'})
-                    if row['role']=='superadmin' and dept!='SYS-PERFORMANCE':
-                        return self.reply(409, {'error':'수퍼관리자의 소속은 성과혁신실로 유지해야 합니다.'})
+                    if row['role']=='superadmin' and not management.can_be_superadmin(dept, CATALOG):
+                        return self.reply(409, {'error':'수퍼관리자의 소속은 성과혁신실 또는 AI정보융합실이어야 합니다.'})
                     before = {'department_id': row['department_id'], 'indicators': json.loads(row['indicators'])}
                     after = {'department_id': dept, 'indicators': indicators}
                     if before != after:
