@@ -70,7 +70,7 @@ def available(department_id, db=None):
 
 def profile(row):
     return {k: json.loads(row[k]) if k == 'indicators' else row[k]
-            for k in ('employee_id', 'department_id', 'indicators', 'revision', 'role', 'admin_department_id')}
+            for k in ('employee_id', 'department_id', 'indicators', 'revision', 'role', 'admin_department_id', 'display_name')}
 
 def selection(data):
     dept, values = data.get('department_id'), data.get('indicators')
