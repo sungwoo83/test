@@ -61,7 +61,7 @@ async function refresh() {
 function render() {
   $('auth').hidden = true; $('home').hidden = false;
   const u = current.user, d = dept(u.department_id), items = indicators(u.department_id).filter(k => u.indicators.includes(k.id));
-  $('header-employee').textContent = '사번 '+u.employee_id;
+  $('header-employee').textContent = (u.display_name?u.display_name+' · ':'')+'사번 '+u.employee_id;
   $('department-name').textContent = d.name; $('department-group').textContent = d.group+' · 사번 '+u.employee_id;
   $('total-count').textContent = items.length;
   $('quant-count').textContent = items.filter(k => k.type === '계량').length;
@@ -213,7 +213,7 @@ async function loadSuper(){
     if(masterItems.some(k=>k.id===old))select.value=old;
     $('user-rows').replaceChildren();
     for(const u of users.users){const row=node('tr'),button=node('button','secondary','권한 변경');button.type='button';button.onclick=()=>openRole(u);
-      const cell=node('td');cell.append(button);row.append(node('td','',u.employee_id),node('td','',departmentLabel(u.department_id)),node('td','',roleLabels[u.role]),node('td','',departmentLabel(u.admin_department_id)),cell);$('user-rows').append(row);}
+      const cell=node('td');cell.append(button);row.append(node('td','',u.employee_id+(u.display_name?' · '+u.display_name:'')),node('td','',departmentLabel(u.department_id)),node('td','',roleLabels[u.role]),node('td','',departmentLabel(u.admin_department_id)),cell);$('user-rows').append(row);}
   }catch(e){$('super-error').textContent=e.message;}
 }
 function openMaster(){
