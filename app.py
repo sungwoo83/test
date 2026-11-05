@@ -1,7 +1,8 @@
 """폐쇄망용 직원 설정 모듈. Python 3.11+, 외부 패키지 불필요."""
 import argparse
 import management
-from urllib.parse import urlsplit, parse_qs
+import evidence
+from urllib.parse import urlsplit, parse_qs, quote, unquote
 import hashlib
 import hmac
 import json
@@ -128,6 +129,23 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split('?')[0]
+        if path.startswith('/api/evidence/'):
+            try:
+                file_id=int(path.rsplit('/',1)[-1])
+                with connect() as db:
+                    session=self.session(db)
+                    if not session: return self.reply(401, {'error':'로그인이 필요합니다.'})
+                    user=db.execute('SELECT * FROM users WHERE employee_id=?',(session['employee_id'],)).fetchone()
+                    file,file_path=evidence.download(db,user,file_id,CATALOG,DB.parent/'uploads')
+                    body=file_path.read_bytes()
+                self.send_response(200)
+                self.headers_common('application/octet-stream',len(body))
+                self.send_header('Content-Disposition',"attachment; filename*=UTF-8''"+quote(file['original_name'],safe=''))
+                self.end_headers();self.wfile.write(body);return
+            except management.APIError as exc:
+                return self.reply(exc.status, {'error':str(exc)})
+            except (ValueError,OSError):
+                return self.reply(404, {'error':'증빙파일을 찾을 수 없습니다.'})
         if path == '/api/catalog':
             with connect() as db:
                 return self.reply(200, {'demo': DEMO, 'departments': CATALOG['departments'],
@@ -163,9 +181,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.headers.get('X-Requested-With') != 'PerformanceManager' or self.headers.get('Sec-Fetch-Site') not in (None, 'same-origin'):
             return self.reply(403, {'error': '허용되지 않은 요청입니다.'})
+        if urlsplit(self.path).path=='/api/evidence/upload':
+            return self.upload_evidence()
         try:
             length = int(self.headers.get('Content-Length', '0'))
-            if not 0 < length <= 16384:
+            if not 0 < length <= 65536:
                 return self.reply(413, {'error': '요청 크기를 확인해 주세요.'})
             if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
                 return self.reply(415, {'error': 'JSON 요청이 필요합니다.'})
@@ -217,7 +237,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not hmac.compare_digest(str(data.get('csrf', '')), session['csrf']):
                     return self.reply(403, {'error': '세션을 새로고침하고 다시 시도해 주세요.'})
                 user = db.execute('SELECT * FROM users WHERE employee_id=?', (session['employee_id'],)).fetchone()
-                if self.path.startswith('/api/monthly/') or self.path.startswith('/api/admin/'):
+                if self.path.startswith('/api/monthly/') or self.path.startswith('/api/admin/') or self.path=='/api/evidence/delete':
                     result = management.post(db,user,self.path,data,management.effective_catalog(db,CATALOG),available)
                     db.commit()
                     return self.reply(200,result)
@@ -246,6 +266,43 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(400, {'error': str(exc) if type(exc) is ValueError else '입력값을 확인해 주세요.'})
         except sqlite3.Error:
             self.reply(503, {'error': '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.'})
+
+
+    def upload_evidence(self):
+        created_path=None
+        try:
+            length=int(self.headers.get('Content-Length','0'))
+            if not 0<length<=evidence.MAX_SIZE:
+                return self.reply(413, {'error':'증빙파일은 파일당 10MB 이하로 업로드해 주세요.'})
+            if self.headers.get('Content-Type','').split(';')[0]!='application/octet-stream':
+                return self.reply(415, {'error':'파일 업로드 형식을 확인해 주세요.'})
+            params=parse_qs(urlsplit(self.path).query)
+            record_id=int(params.get('record_id',[''])[0])
+            filename=unquote(self.headers.get('X-File-Name',''))
+            with connect() as db:
+                db.execute('BEGIN IMMEDIATE')
+                session=self.session(db)
+                if not session:return self.reply(401, {'error':'로그인이 필요합니다.'})
+                if not hmac.compare_digest(self.headers.get('X-CSRF-Token',''),session['csrf']):
+                    return self.reply(403, {'error':'세션을 새로고침하고 다시 시도해 주세요.'})
+                user=db.execute('SELECT * FROM users WHERE employee_id=?',(session['employee_id'],)).fetchone()
+                evidence.accessible_record(db,user,record_id,CATALOG,True)
+                body=self.rfile.read(length)
+                if len(body)!=length:raise management.APIError(400,'파일 전송이 완료되지 않았습니다.')
+                result=evidence.upload(db,user,record_id,filename,body,CATALOG,DB.parent/'uploads')
+                storage_name=db.execute('SELECT storage_name FROM evidence_files WHERE id=?',(result['file']['id'],)).fetchone()[0]
+                created_path=DB.parent/'uploads'/storage_name
+                db.commit()
+                created_path=None
+                return self.reply(200,result)
+        except management.APIError as exc:
+            self.reply(exc.status, {'error':str(exc)})
+        except (ValueError,UnicodeError):
+            self.reply(400, {'error':'증빙 요청을 확인해 주세요.'})
+        except (OSError,sqlite3.Error):
+            self.reply(503, {'error':'파일 저장에 실패했습니다. 다시 시도해 주세요.'})
+        finally:
+            if created_path is not None:created_path.unlink(missing_ok=True)
 
 def main():
     global DB, SECURE
