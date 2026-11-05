@@ -1,0 +1,1822 @@
+{
+  "departments": [
+    {
+      "id": "ORG-001",
+      "name": "홍보팀",
+      "group": "본사 지원",
+      "kind": "본사",
+      "indicator_department": "홍보비서실"
+    },
+    {
+      "id": "ORG-002",
+      "name": "기획예산처",
+      "group": "본사 지원",
+      "kind": "본사"
+    },
+    {
+      "id": "ORG-003",
+      "name": "행정처",
+      "group": "본사 지원",
+      "kind": "본사"
+    },
+    {
+      "id": "ORG-004",
+      "name": "AI정보융합실",
+      "group": "본사 지원",
+      "kind": "본사"
+    },
+    {
+      "id": "ORG-005",
+      "name": "일터안전실",
+      "group": "본사 지원",
+      "kind": "본사"
+    },
+    {
+      "id": "ORG-006",
+      "name": "생태디자인실",
+      "group": "본사 지원",
+      "kind": "본사"
+    },
+    {
+      "id": "ORG-007",
+      "name": "자원보전처",
+      "group": "본사 사업",
+      "kind": "본사"
+    },
+    {
+      "id": "ORG-008",
+      "name": "환경협력처",
+      "group": "본사 사업",
+      "kind": "본사"
+    },
+    {
+      "id": "ORG-009",
+      "name": "탐방시설처",
+      "group": "본사 사업",
+      "kind": "본사"
+    },
+    {
+      "id": "ORG-010",
+      "name": "재난안전처",
+      "group": "본사 사업",
+      "kind": "본사"
+    },
+    {
+      "id": "ORG-011",
+      "name": "동부지역본부",
+      "group": "지역본부",
+      "kind": "지역본부"
+    },
+    {
+      "id": "ORG-012",
+      "name": "서부지역본부",
+      "group": "지역본부",
+      "kind": "지역본부"
+    },
+    {
+      "id": "ORG-013",
+      "name": "중부지역본부",
+      "group": "지역본부",
+      "kind": "지역본부"
+    },
+    {
+      "id": "ORG-014",
+      "name": "북부지역본부",
+      "group": "지역본부",
+      "kind": "지역본부"
+    },
+    {
+      "id": "ORG-015",
+      "name": "지리산경남",
+      "group": "사무소 육상1군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-016",
+      "name": "지리산전북",
+      "group": "사무소 육상1군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-017",
+      "name": "경주",
+      "group": "사무소 육상1군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-018",
+      "name": "계룡산",
+      "group": "사무소 육상1군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-019",
+      "name": "설악산",
+      "group": "사무소 육상1군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-020",
+      "name": "속리산",
+      "group": "사무소 육상1군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-021",
+      "name": "덕유산",
+      "group": "사무소 육상1군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-022",
+      "name": "오대산",
+      "group": "사무소 육상1군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-023",
+      "name": "월악산",
+      "group": "사무소 육상1군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-024",
+      "name": "북한산",
+      "group": "사무소 육상1군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-025",
+      "name": "북한산도봉",
+      "group": "사무소 육상1군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-026",
+      "name": "무등산",
+      "group": "사무소 육상1군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-027",
+      "name": "태백산",
+      "group": "사무소 육상1군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-028",
+      "name": "지리산전남",
+      "group": "사무소 육상2군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-029",
+      "name": "내장산",
+      "group": "사무소 육상2군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-030",
+      "name": "내장산백암",
+      "group": "사무소 육상2군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-031",
+      "name": "가야산",
+      "group": "사무소 육상2군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-032",
+      "name": "주왕산",
+      "group": "사무소 육상2군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-033",
+      "name": "치악산",
+      "group": "사무소 육상2군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-034",
+      "name": "소백산",
+      "group": "사무소 육상2군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-035",
+      "name": "소백산북부",
+      "group": "사무소 육상2군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-036",
+      "name": "월출산",
+      "group": "사무소 육상2군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-037",
+      "name": "무등산동부",
+      "group": "사무소 육상2군",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-038",
+      "name": "한려해상",
+      "group": "사무소 해상해안",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-039",
+      "name": "한려해상동부",
+      "group": "사무소 해상해안",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-040",
+      "name": "태안해안",
+      "group": "사무소 해상해안",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-041",
+      "name": "다도해해상",
+      "group": "사무소 해상해안",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-042",
+      "name": "다도해해상서부",
+      "group": "사무소 해상해안",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-043",
+      "name": "변산반도",
+      "group": "사무소 해상해안",
+      "kind": "사무소"
+    },
+    {
+      "id": "ORG-044",
+      "name": "북한산생태탐방원",
+      "group": "생태탐방원",
+      "kind": "생태탐방원"
+    },
+    {
+      "id": "ORG-045",
+      "name": "지리산생태탐방원",
+      "group": "생태탐방원",
+      "kind": "생태탐방원"
+    },
+    {
+      "id": "ORG-046",
+      "name": "설악산생태탐방원",
+      "group": "생태탐방원",
+      "kind": "생태탐방원"
+    },
+    {
+      "id": "ORG-047",
+      "name": "소백산생태탐방원",
+      "group": "생태탐방원",
+      "kind": "생태탐방원"
+    },
+    {
+      "id": "ORG-048",
+      "name": "한려해상생태탐방원",
+      "group": "생태탐방원",
+      "kind": "생태탐방원"
+    },
+    {
+      "id": "ORG-049",
+      "name": "가야산생태탐방원",
+      "group": "생태탐방원",
+      "kind": "생태탐방원"
+    },
+    {
+      "id": "ORG-050",
+      "name": "무등산생태탐방원",
+      "group": "생태탐방원",
+      "kind": "생태탐방원"
+    },
+    {
+      "id": "ORG-051",
+      "name": "내장산생태탐방원",
+      "group": "생태탐방원",
+      "kind": "생태탐방원"
+    },
+    {
+      "id": "ORG-052",
+      "name": "변산반도생태탐방원",
+      "group": "생태탐방원",
+      "kind": "생태탐방원"
+    },
+    {
+      "id": "ORG-053",
+      "name": "국립공원연구원",
+      "group": "단독군",
+      "kind": "단독군"
+    },
+    {
+      "id": "ORG-054",
+      "name": "국립공원야생생물보전원",
+      "group": "단독군",
+      "kind": "단독군"
+    },
+    {
+      "id": "ORG-055",
+      "name": "국가지질공원사무국",
+      "group": "단독군",
+      "kind": "단독군"
+    }
+  ],
+  "indicators": [
+    {
+      "id": "KPI-001",
+      "kind": "본사",
+      "applies_to": "홍보비서실",
+      "name": "공단 인지도",
+      "category": "고유",
+      "type": "계량",
+      "page": "45"
+    },
+    {
+      "id": "KPI-002",
+      "kind": "본사",
+      "applies_to": "홍보비서실",
+      "name": "보도자료 제공 건수",
+      "category": "고유",
+      "type": "계량",
+      "page": "46"
+    },
+    {
+      "id": "KPI-003",
+      "kind": "본사",
+      "applies_to": "홍보비서실",
+      "name": "종합성과보고서",
+      "category": "공통",
+      "type": "비계량",
+      "page": "47"
+    },
+    {
+      "id": "KPI-004",
+      "kind": "본사",
+      "applies_to": "홍보비서실",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "48~49"
+    },
+    {
+      "id": "KPI-005",
+      "kind": "본사",
+      "applies_to": "홍보비서실",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "50"
+    },
+    {
+      "id": "KPI-006",
+      "kind": "본사",
+      "applies_to": "홍보비서실",
+      "name": "정부평가 이행점검 실적",
+      "category": null,
+      "type": "계량",
+      "page": "51"
+    },
+    {
+      "id": "KPI-007",
+      "kind": "본사",
+      "applies_to": "홍보비서실",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "52"
+    },
+    {
+      "id": "KPI-008",
+      "kind": "본사",
+      "applies_to": "기획예산처",
+      "name": "이사회 운영 활성화",
+      "category": "고유",
+      "type": "계량",
+      "page": "53"
+    },
+    {
+      "id": "KPI-009",
+      "kind": "본사",
+      "applies_to": "기획예산처",
+      "name": "예산 지출 효율화",
+      "category": "고유",
+      "type": "계량",
+      "page": "54"
+    },
+    {
+      "id": "KPI-010",
+      "kind": "본사",
+      "applies_to": "기획예산처",
+      "name": "보호지역관리 국제교류협력 추진",
+      "category": "고유",
+      "type": "계량",
+      "page": "55"
+    },
+    {
+      "id": "KPI-011",
+      "kind": "본사",
+      "applies_to": "기획예산처",
+      "name": "종합성과보고서",
+      "category": "공통",
+      "type": "비계량",
+      "page": "56"
+    },
+    {
+      "id": "KPI-012",
+      "kind": "본사",
+      "applies_to": "기획예산처",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "57~58"
+    },
+    {
+      "id": "KPI-013",
+      "kind": "본사",
+      "applies_to": "기획예산처",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "59"
+    },
+    {
+      "id": "KPI-014",
+      "kind": "본사",
+      "applies_to": "기획예산처",
+      "name": "정부평가 이행점검 실적",
+      "category": null,
+      "type": "계량",
+      "page": "60"
+    },
+    {
+      "id": "KPI-015",
+      "kind": "본사",
+      "applies_to": "기획예산처",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "61"
+    },
+    {
+      "id": "KPI-016",
+      "kind": "본사",
+      "applies_to": "행정처",
+      "name": "노사관계지수",
+      "category": "고유",
+      "type": "계량",
+      "page": "62"
+    },
+    {
+      "id": "KPI-017",
+      "kind": "본사",
+      "applies_to": "행정처",
+      "name": "재무 건전성 개선",
+      "category": "고유",
+      "type": "계량",
+      "page": "63"
+    },
+    {
+      "id": "KPI-018",
+      "kind": "본사",
+      "applies_to": "행정처",
+      "name": "행정지원 종합지수",
+      "category": "고유",
+      "type": "계량",
+      "page": "64"
+    },
+    {
+      "id": "KPI-019",
+      "kind": "본사",
+      "applies_to": "행정처",
+      "name": "종합성과보고서",
+      "category": "공통",
+      "type": "비계량",
+      "page": "65"
+    },
+    {
+      "id": "KPI-020",
+      "kind": "본사",
+      "applies_to": "행정처",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "66~67"
+    },
+    {
+      "id": "KPI-021",
+      "kind": "본사",
+      "applies_to": "행정처",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "68"
+    },
+    {
+      "id": "KPI-022",
+      "kind": "본사",
+      "applies_to": "행정처",
+      "name": "정부평가 이행점검 실적",
+      "category": null,
+      "type": "계량",
+      "page": "69"
+    },
+    {
+      "id": "KPI-023",
+      "kind": "본사",
+      "applies_to": "행정처",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "70"
+    },
+    {
+      "id": "KPI-024",
+      "kind": "본사",
+      "applies_to": "AI정보융합실",
+      "name": "데이터 정부평가 결과",
+      "category": "고유",
+      "type": "계량",
+      "page": "71"
+    },
+    {
+      "id": "KPI-025",
+      "kind": "본사",
+      "applies_to": "AI정보융합실",
+      "name": "AI 전환 추진 실적",
+      "category": "고유",
+      "type": "계량",
+      "page": "72"
+    },
+    {
+      "id": "KPI-026",
+      "kind": "본사",
+      "applies_to": "AI정보융합실",
+      "name": "종합성과보고서",
+      "category": "공통",
+      "type": "비계량",
+      "page": "73"
+    },
+    {
+      "id": "KPI-027",
+      "kind": "본사",
+      "applies_to": "AI정보융합실",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "74~75"
+    },
+    {
+      "id": "KPI-028",
+      "kind": "본사",
+      "applies_to": "AI정보융합실",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "76"
+    },
+    {
+      "id": "KPI-029",
+      "kind": "본사",
+      "applies_to": "AI정보융합실",
+      "name": "정부평가 이행점검 실적",
+      "category": null,
+      "type": "계량",
+      "page": "77"
+    },
+    {
+      "id": "KPI-030",
+      "kind": "본사",
+      "applies_to": "AI정보융합실",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "78"
+    },
+    {
+      "id": "KPI-031",
+      "kind": "본사",
+      "applies_to": "일터안전실",
+      "name": "사업장 안전보건관리 수준 향상 실적",
+      "category": "고유",
+      "type": "계량",
+      "page": "79"
+    },
+    {
+      "id": "KPI-032",
+      "kind": "본사",
+      "applies_to": "일터안전실",
+      "name": "안전근로 체감지수",
+      "category": "고유",
+      "type": "계량",
+      "page": "80"
+    },
+    {
+      "id": "KPI-033",
+      "kind": "본사",
+      "applies_to": "일터안전실",
+      "name": "종합성과보고서",
+      "category": "공통",
+      "type": "비계량",
+      "page": "81"
+    },
+    {
+      "id": "KPI-034",
+      "kind": "본사",
+      "applies_to": "일터안전실",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "82~83"
+    },
+    {
+      "id": "KPI-035",
+      "kind": "본사",
+      "applies_to": "일터안전실",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "84"
+    },
+    {
+      "id": "KPI-036",
+      "kind": "본사",
+      "applies_to": "일터안전실",
+      "name": "정부평가 이행점검 실적",
+      "category": null,
+      "type": "계량",
+      "page": "85"
+    },
+    {
+      "id": "KPI-037",
+      "kind": "본사",
+      "applies_to": "일터안전실",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "86"
+    },
+    {
+      "id": "KPI-038",
+      "kind": "본사",
+      "applies_to": "생태디자인실",
+      "name": "국립공원 굿즈 활성화",
+      "category": "고유",
+      "type": "계량",
+      "page": "87"
+    },
+    {
+      "id": "KPI-039",
+      "kind": "본사",
+      "applies_to": "생태디자인실",
+      "name": "디자인 효율적 수행",
+      "category": "고유",
+      "type": "계량",
+      "page": "88"
+    },
+    {
+      "id": "KPI-040",
+      "kind": "본사",
+      "applies_to": "생태디자인실",
+      "name": "홍보물 제작",
+      "category": "고유",
+      "type": "계량",
+      "page": "89"
+    },
+    {
+      "id": "KPI-041",
+      "kind": "본사",
+      "applies_to": "생태디자인실",
+      "name": "종합성과보고서",
+      "category": "공통",
+      "type": "비계량",
+      "page": "90"
+    },
+    {
+      "id": "KPI-042",
+      "kind": "본사",
+      "applies_to": "생태디자인실",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "91~92"
+    },
+    {
+      "id": "KPI-043",
+      "kind": "본사",
+      "applies_to": "생태디자인실",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "93"
+    },
+    {
+      "id": "KPI-044",
+      "kind": "본사",
+      "applies_to": "생태디자인실",
+      "name": "정부평가 이행점검 실적",
+      "category": null,
+      "type": "계량",
+      "page": "94"
+    },
+    {
+      "id": "KPI-045",
+      "kind": "본사",
+      "applies_to": "생태디자인실",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "95"
+    },
+    {
+      "id": "KPI-046",
+      "kind": "본사",
+      "applies_to": "자원보전처",
+      "name": "자연·문화자원 보전",
+      "category": "고유",
+      "type": "계량",
+      "page": "96~97~98~99"
+    },
+    {
+      "id": "KPI-047",
+      "kind": "본사",
+      "applies_to": "자원보전처",
+      "name": "종합성과보고서",
+      "category": "공통",
+      "type": "비계량",
+      "page": "100"
+    },
+    {
+      "id": "KPI-048",
+      "kind": "본사",
+      "applies_to": "자원보전처",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "101~102~103"
+    },
+    {
+      "id": "KPI-049",
+      "kind": "본사",
+      "applies_to": "자원보전처",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "104"
+    },
+    {
+      "id": "KPI-050",
+      "kind": "본사",
+      "applies_to": "자원보전처",
+      "name": "정부평가 이행점검 실적",
+      "category": null,
+      "type": "계량",
+      "page": "105"
+    },
+    {
+      "id": "KPI-051",
+      "kind": "본사",
+      "applies_to": "자원보전처",
+      "name": "공원정책 홍보횟수",
+      "category": "공통",
+      "type": "계량",
+      "page": "106"
+    },
+    {
+      "id": "KPI-052",
+      "kind": "본사",
+      "applies_to": "자원보전처",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "107"
+    },
+    {
+      "id": "KPI-053",
+      "kind": "본사",
+      "applies_to": "환경협력처",
+      "name": "공원자원 훼손행위 예방",
+      "category": "고유",
+      "type": "계량",
+      "page": "108"
+    },
+    {
+      "id": "KPI-054",
+      "kind": "본사",
+      "applies_to": "환경협력처",
+      "name": "탐방객 1인당 육상 쓰레기 발생량",
+      "category": "고유",
+      "type": "계량",
+      "page": "109"
+    },
+    {
+      "id": "KPI-055",
+      "kind": "본사",
+      "applies_to": "환경협력처",
+      "name": "기업과의 ESG협력사업 활성화",
+      "category": "고유",
+      "type": "계량",
+      "page": "110"
+    },
+    {
+      "id": "KPI-056",
+      "kind": "본사",
+      "applies_to": "환경협력처",
+      "name": "민간 일자리 창출",
+      "category": "고유",
+      "type": "계량",
+      "page": "111"
+    },
+    {
+      "id": "KPI-057",
+      "kind": "본사",
+      "applies_to": "환경협력처",
+      "name": "종합성과보고서",
+      "category": "공통",
+      "type": "비계량",
+      "page": "112"
+    },
+    {
+      "id": "KPI-058",
+      "kind": "본사",
+      "applies_to": "환경협력처",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "113~114~115"
+    },
+    {
+      "id": "KPI-059",
+      "kind": "본사",
+      "applies_to": "환경협력처",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "116"
+    },
+    {
+      "id": "KPI-060",
+      "kind": "본사",
+      "applies_to": "환경협력처",
+      "name": "정부평가 이행점검 실적",
+      "category": null,
+      "type": "계량",
+      "page": "117"
+    },
+    {
+      "id": "KPI-061",
+      "kind": "본사",
+      "applies_to": "환경협력처",
+      "name": "공원정책 홍보횟수",
+      "category": "공통",
+      "type": "계량",
+      "page": "118"
+    },
+    {
+      "id": "KPI-062",
+      "kind": "본사",
+      "applies_to": "환경협력처",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "119"
+    },
+    {
+      "id": "KPI-063",
+      "kind": "본사",
+      "applies_to": "탐방시설처",
+      "name": "탐방체험시설 이용자 수",
+      "category": "고유",
+      "type": "계량",
+      "page": "120"
+    },
+    {
+      "id": "KPI-064",
+      "kind": "본사",
+      "applies_to": "탐방시설처",
+      "name": "사회문제해결형 탐방프로그램 확대",
+      "category": "고유",
+      "type": "계량",
+      "page": "121"
+    },
+    {
+      "id": "KPI-065",
+      "kind": "본사",
+      "applies_to": "탐방시설처",
+      "name": "무장애 탐방인프라 확대율",
+      "category": "고유",
+      "type": "계량",
+      "page": "122"
+    },
+    {
+      "id": "KPI-066",
+      "kind": "본사",
+      "applies_to": "탐방시설처",
+      "name": "탄소중립형 공원시설 조성률",
+      "category": "고유",
+      "type": "계량",
+      "page": "123"
+    },
+    {
+      "id": "KPI-067",
+      "kind": "본사",
+      "applies_to": "탐방시설처",
+      "name": "시설이용 만족도 조사",
+      "category": "고유",
+      "type": "계량",
+      "page": "124"
+    },
+    {
+      "id": "KPI-068",
+      "kind": "본사",
+      "applies_to": "탐방시설처",
+      "name": "신재생에너지 확대량",
+      "category": "고유",
+      "type": "계량",
+      "page": "125"
+    },
+    {
+      "id": "KPI-069",
+      "kind": "본사",
+      "applies_to": "탐방시설처",
+      "name": "종합성과보고서",
+      "category": "공통",
+      "type": "비계량",
+      "page": "126"
+    },
+    {
+      "id": "KPI-070",
+      "kind": "본사",
+      "applies_to": "탐방시설처",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "127~128~129"
+    },
+    {
+      "id": "KPI-071",
+      "kind": "본사",
+      "applies_to": "탐방시설처",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "130"
+    },
+    {
+      "id": "KPI-072",
+      "kind": "본사",
+      "applies_to": "탐방시설처",
+      "name": "정부평가 이행점검 실적",
+      "category": null,
+      "type": "계량",
+      "page": "131"
+    },
+    {
+      "id": "KPI-073",
+      "kind": "본사",
+      "applies_to": "탐방시설처",
+      "name": "공원정책 홍보횟수",
+      "category": "공통",
+      "type": "계량",
+      "page": "132"
+    },
+    {
+      "id": "KPI-074",
+      "kind": "본사",
+      "applies_to": "탐방시설처",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "133"
+    },
+    {
+      "id": "KPI-075",
+      "kind": "본사",
+      "applies_to": "재난안전처",
+      "name": "탐방객 안전사고 감소율",
+      "category": "고유",
+      "type": "계량",
+      "page": "134"
+    },
+    {
+      "id": "KPI-076",
+      "kind": "본사",
+      "applies_to": "재난안전처",
+      "name": "탐방객 안전서비스 만족도",
+      "category": "고유",
+      "type": "계량",
+      "page": "135"
+    },
+    {
+      "id": "KPI-077",
+      "kind": "본사",
+      "applies_to": "재난안전처",
+      "name": "민관협력 네트워크 활성화",
+      "category": "고유",
+      "type": "계량",
+      "page": "136"
+    },
+    {
+      "id": "KPI-078",
+      "kind": "본사",
+      "applies_to": "재난안전처",
+      "name": "재난예경보시설 정상 자료율",
+      "category": "고유",
+      "type": "계량",
+      "page": "137"
+    },
+    {
+      "id": "KPI-079",
+      "kind": "본사",
+      "applies_to": "재난안전처",
+      "name": "재난취약지구 정비율",
+      "category": "고유",
+      "type": "계량",
+      "page": "138"
+    },
+    {
+      "id": "KPI-080",
+      "kind": "본사",
+      "applies_to": "재난안전처",
+      "name": "AI기반 국립공원 산불 상시 감시율",
+      "category": "고유",
+      "type": "계량",
+      "page": "139"
+    },
+    {
+      "id": "KPI-081",
+      "kind": "본사",
+      "applies_to": "재난안전처",
+      "name": "종합성과보고서",
+      "category": "공통",
+      "type": "비계량",
+      "page": "140"
+    },
+    {
+      "id": "KPI-082",
+      "kind": "본사",
+      "applies_to": "재난안전처",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "141~142~143"
+    },
+    {
+      "id": "KPI-083",
+      "kind": "본사",
+      "applies_to": "재난안전처",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "144"
+    },
+    {
+      "id": "KPI-084",
+      "kind": "본사",
+      "applies_to": "재난안전처",
+      "name": "정부평가 이행점검 실적",
+      "category": null,
+      "type": "계량",
+      "page": "145"
+    },
+    {
+      "id": "KPI-085",
+      "kind": "본사",
+      "applies_to": "재난안전처",
+      "name": "공원정책 홍보횟수",
+      "category": "공통",
+      "type": "계량",
+      "page": "146"
+    },
+    {
+      "id": "KPI-086",
+      "kind": "본사",
+      "applies_to": "재난안전처",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "147"
+    },
+    {
+      "id": "KPI-087",
+      "kind": "본사",
+      "applies_to": "국립휴양공원추진단 TF",
+      "name": "국립휴양공원 체계 도입 및 활성화",
+      "category": "고유",
+      "type": "비계량",
+      "page": "148"
+    },
+    {
+      "id": "KPI-088",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "보호지역 대상 광역지자체 협력사업 추진",
+      "category": "고유",
+      "type": "계량",
+      "page": "153"
+    },
+    {
+      "id": "KPI-089",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "공원사업 추진현황 보고율",
+      "category": "고유",
+      "type": "계량",
+      "page": "154"
+    },
+    {
+      "id": "KPI-090",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "국립공원 생태계 건강성 향상",
+      "category": "고유",
+      "type": "계량",
+      "page": "155"
+    },
+    {
+      "id": "KPI-091",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "특별단속팀 운영 활성화",
+      "category": "고유",
+      "type": "계량",
+      "page": "156"
+    },
+    {
+      "id": "KPI-092",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "공원관리협력 사업 활성화",
+      "category": "고유",
+      "type": "계량",
+      "page": "157"
+    },
+    {
+      "id": "KPI-093",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "종합성과보고서",
+      "category": "고유",
+      "type": "비계량",
+      "page": "158"
+    },
+    {
+      "id": "KPI-094",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "탐방 공공성 강화 및 탐방 정책 추진 노력",
+      "category": "공통",
+      "type": "계량",
+      "page": "159"
+    },
+    {
+      "id": "KPI-095",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "고객만족 향상 노력",
+      "category": "공통",
+      "type": "계량",
+      "page": "160"
+    },
+    {
+      "id": "KPI-096",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "안전보건관리 강화",
+      "category": "공통",
+      "type": "계량",
+      "page": "161~162~163"
+    },
+    {
+      "id": "KPI-097",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "정부권장정책 이행 실적",
+      "category": "공통",
+      "type": "계량",
+      "page": "164~165"
+    },
+    {
+      "id": "KPI-098",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "166~167~168"
+    },
+    {
+      "id": "KPI-099",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "169"
+    },
+    {
+      "id": "KPI-100",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "탄소중립 문화확산",
+      "category": "공통",
+      "type": "계량",
+      "page": "170"
+    },
+    {
+      "id": "KPI-101",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "국립공원 예산 집행률",
+      "category": "공통",
+      "type": "계량",
+      "page": "171"
+    },
+    {
+      "id": "KPI-102",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "공원관리 성과 홍보 활성화",
+      "category": "공통",
+      "type": "계량",
+      "page": "172"
+    },
+    {
+      "id": "KPI-103",
+      "kind": "지역본부",
+      "applies_to": "지역본부",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "173"
+    },
+    {
+      "id": "KPI-104",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "국립공원 생태계 건강성 향상",
+      "category": "고유",
+      "type": "계량",
+      "page": "179~180~181~182"
+    },
+    {
+      "id": "KPI-105",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "공원자원 훼손행위 예방",
+      "category": "고유",
+      "type": "계량",
+      "page": "183"
+    },
+    {
+      "id": "KPI-106",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "공원관리 참여 활성화",
+      "category": "고유",
+      "type": "계량",
+      "page": "184~185"
+    },
+    {
+      "id": "KPI-107",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "대국민 안전관리 강화",
+      "category": "공통",
+      "type": "계량",
+      "page": "186~187"
+    },
+    {
+      "id": "KPI-108",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "종합성과보고서",
+      "category": "고유",
+      "type": "비계량",
+      "page": "188"
+    },
+    {
+      "id": "KPI-109",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "탐방 공공성 강화 및 탐방 정책 추진 노력",
+      "category": "공통",
+      "type": "계량",
+      "page": "189~190"
+    },
+    {
+      "id": "KPI-110",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "고객만족 향상 노력",
+      "category": "공통",
+      "type": "계량",
+      "page": "191"
+    },
+    {
+      "id": "KPI-111",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "안전보건관리 강화",
+      "category": "공통",
+      "type": "계량",
+      "page": "192~193~194"
+    },
+    {
+      "id": "KPI-112",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "정부권장정책 이행 실적",
+      "category": "공통",
+      "type": "계량",
+      "page": "195~196"
+    },
+    {
+      "id": "KPI-113",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "197~198~199"
+    },
+    {
+      "id": "KPI-114",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "200"
+    },
+    {
+      "id": "KPI-115",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "탄소중립 문화확산",
+      "category": "공통",
+      "type": "계량",
+      "page": "201"
+    },
+    {
+      "id": "KPI-116",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "국립공원 예산 집행률",
+      "category": "공통",
+      "type": "계량",
+      "page": "202"
+    },
+    {
+      "id": "KPI-117",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "공원관리 성과 홍보 활성화",
+      "category": "공통",
+      "type": "계량",
+      "page": "203"
+    },
+    {
+      "id": "KPI-118",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "204"
+    },
+    {
+      "id": "KPI-119",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "수입증대 기여도",
+      "category": "가점",
+      "type": "계량",
+      "page": "205"
+    },
+    {
+      "id": "KPI-120",
+      "kind": "사무소",
+      "applies_to": "사무소",
+      "name": "지역본부 협업 이행도",
+      "category": "가점",
+      "type": "계량",
+      "page": "206"
+    },
+    {
+      "id": "KPI-121",
+      "kind": "생태탐방원",
+      "applies_to": "생태탐방원",
+      "name": "운영 활성화 지수",
+      "category": "고유",
+      "type": "계량",
+      "page": "211"
+    },
+    {
+      "id": "KPI-122",
+      "kind": "생태탐방원",
+      "applies_to": "생태탐방원",
+      "name": "수입금 달성률",
+      "category": "고유",
+      "type": "계량",
+      "page": "212"
+    },
+    {
+      "id": "KPI-123",
+      "kind": "생태탐방원",
+      "applies_to": "생태탐방원",
+      "name": "종합성과보고서",
+      "category": "고유",
+      "type": "비계량",
+      "page": "213"
+    },
+    {
+      "id": "KPI-124",
+      "kind": "생태탐방원",
+      "applies_to": "생태탐방원",
+      "name": "고객만족 향상 노력",
+      "category": "고유",
+      "type": "계량",
+      "page": "214"
+    },
+    {
+      "id": "KPI-125",
+      "kind": "생태탐방원",
+      "applies_to": "생태탐방원",
+      "name": "안전보건관리 강화",
+      "category": "공통",
+      "type": "계량",
+      "page": "215~216~217"
+    },
+    {
+      "id": "KPI-126",
+      "kind": "생태탐방원",
+      "applies_to": "생태탐방원",
+      "name": "정부권장정책 이행 실적",
+      "category": "공통",
+      "type": "계량",
+      "page": "218~219"
+    },
+    {
+      "id": "KPI-127",
+      "kind": "생태탐방원",
+      "applies_to": "생태탐방원",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "220~221"
+    },
+    {
+      "id": "KPI-128",
+      "kind": "생태탐방원",
+      "applies_to": "생태탐방원",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "222"
+    },
+    {
+      "id": "KPI-129",
+      "kind": "생태탐방원",
+      "applies_to": "생태탐방원",
+      "name": "탄소중립 문화확산",
+      "category": "공통",
+      "type": "계량",
+      "page": "223"
+    },
+    {
+      "id": "KPI-130",
+      "kind": "생태탐방원",
+      "applies_to": "생태탐방원",
+      "name": "공원정책 홍보횟수",
+      "category": "공통",
+      "type": "계량",
+      "page": "224"
+    },
+    {
+      "id": "KPI-131",
+      "kind": "생태탐방원",
+      "applies_to": "생태탐방원",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "225"
+    },
+    {
+      "id": "KPI-132",
+      "kind": "생태탐방원",
+      "applies_to": "생태탐방원",
+      "name": "수입증대 기여도",
+      "category": "가점",
+      "type": "계량",
+      "page": "226"
+    },
+    {
+      "id": "KPI-133",
+      "kind": "생태탐방원",
+      "applies_to": "생태탐방원",
+      "name": "지역본부 협업 이행도",
+      "category": "가점",
+      "type": "계량",
+      "page": "227"
+    },
+    {
+      "id": "KPI-134",
+      "kind": "단독군",
+      "applies_to": "국립공원연구원",
+      "name": "학술논문 발표 건수",
+      "category": "고유",
+      "type": "계량",
+      "page": "233"
+    },
+    {
+      "id": "KPI-135",
+      "kind": "단독군",
+      "applies_to": "국립공원연구원",
+      "name": "조사·연구결과 재가공 건수",
+      "category": "고유",
+      "type": "계량",
+      "page": "234"
+    },
+    {
+      "id": "KPI-136",
+      "kind": "단독군",
+      "applies_to": "국립공원연구원",
+      "name": "생태계 탄소저장흡수량 평가",
+      "category": "고유",
+      "type": "계량",
+      "page": "235"
+    },
+    {
+      "id": "KPI-137",
+      "kind": "단독군",
+      "applies_to": "국립공원연구원",
+      "name": "종합성과보고서",
+      "category": "고유",
+      "type": "비계량",
+      "page": "236"
+    },
+    {
+      "id": "KPI-138",
+      "kind": "단독군",
+      "applies_to": "국립공원연구원",
+      "name": "탐방 공공성 강화 및 탐방 정책 추진 노력",
+      "category": "공통",
+      "type": "계량",
+      "page": "237"
+    },
+    {
+      "id": "KPI-139",
+      "kind": "단독군",
+      "applies_to": "국립공원연구원",
+      "name": "안전보건관리 강화",
+      "category": "공통",
+      "type": "계량",
+      "page": "238~239~240"
+    },
+    {
+      "id": "KPI-140",
+      "kind": "단독군",
+      "applies_to": "국립공원연구원",
+      "name": "정부권장정책 이행 실적",
+      "category": "공통",
+      "type": "계량",
+      "page": "241~242"
+    },
+    {
+      "id": "KPI-141",
+      "kind": "단독군",
+      "applies_to": "국립공원연구원",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "243~244"
+    },
+    {
+      "id": "KPI-142",
+      "kind": "단독군",
+      "applies_to": "국립공원연구원",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "245"
+    },
+    {
+      "id": "KPI-143",
+      "kind": "단독군",
+      "applies_to": "국립공원연구원",
+      "name": "탄소중립 문화확산",
+      "category": "공통",
+      "type": "계량",
+      "page": "246"
+    },
+    {
+      "id": "KPI-144",
+      "kind": "단독군",
+      "applies_to": "국립공원연구원",
+      "name": "공원정책 홍보횟수",
+      "category": "공통",
+      "type": "계량",
+      "page": "247"
+    },
+    {
+      "id": "KPI-145",
+      "kind": "단독군",
+      "applies_to": "국립공원연구원",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "248"
+    },
+    {
+      "id": "KPI-146",
+      "kind": "단독군",
+      "applies_to": "국립공원야생생물보전원",
+      "name": "멸종위기동물 복원률",
+      "category": "고유",
+      "type": "계량",
+      "page": "249"
+    },
+    {
+      "id": "KPI-147",
+      "kind": "단독군",
+      "applies_to": "국립공원야생생물보전원",
+      "name": "멸종위기 및 자생식물 서식지복원",
+      "category": "고유",
+      "type": "계량",
+      "page": "250"
+    },
+    {
+      "id": "KPI-148",
+      "kind": "단독군",
+      "applies_to": "국립공원야생생물보전원",
+      "name": "종합성과보고서",
+      "category": "고유",
+      "type": "비계량",
+      "page": "251"
+    },
+    {
+      "id": "KPI-149",
+      "kind": "단독군",
+      "applies_to": "국립공원야생생물보전원",
+      "name": "탐방 공공성 강화 및 탐방 정책 추진 노력",
+      "category": "공통",
+      "type": "계량",
+      "page": "252"
+    },
+    {
+      "id": "KPI-150",
+      "kind": "단독군",
+      "applies_to": "국립공원야생생물보전원",
+      "name": "안전보건관리 강화",
+      "category": "공통",
+      "type": "계량",
+      "page": "253~254~255"
+    },
+    {
+      "id": "KPI-151",
+      "kind": "단독군",
+      "applies_to": "국립공원야생생물보전원",
+      "name": "정부권장정책 이행 실적",
+      "category": "공통",
+      "type": "계량",
+      "page": "256~257"
+    },
+    {
+      "id": "KPI-152",
+      "kind": "단독군",
+      "applies_to": "국립공원야생생물보전원",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "258~259"
+    },
+    {
+      "id": "KPI-153",
+      "kind": "단독군",
+      "applies_to": "국립공원야생생물보전원",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "260"
+    },
+    {
+      "id": "KPI-154",
+      "kind": "단독군",
+      "applies_to": "국립공원야생생물보전원",
+      "name": "탄소중립 문화확산",
+      "category": "공통",
+      "type": "계량",
+      "page": "261"
+    },
+    {
+      "id": "KPI-155",
+      "kind": "단독군",
+      "applies_to": "국립공원야생생물보전원",
+      "name": "공원정책 홍보횟수",
+      "category": "공통",
+      "type": "계량",
+      "page": "262"
+    },
+    {
+      "id": "KPI-156",
+      "kind": "단독군",
+      "applies_to": "국립공원야생생물보전원",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "263"
+    },
+    {
+      "id": "KPI-157",
+      "kind": "단독군",
+      "applies_to": "국가지질공원사무국",
+      "name": "지질공원사업 수행",
+      "category": "고유",
+      "type": "계량",
+      "page": "264"
+    },
+    {
+      "id": "KPI-158",
+      "kind": "단독군",
+      "applies_to": "국가지질공원사무국",
+      "name": "보호지역(지질공원 ․ BR) 지식·정보 보급 교육 만족도",
+      "category": "고유",
+      "type": "계량",
+      "page": "265"
+    },
+    {
+      "id": "KPI-159",
+      "kind": "단독군",
+      "applies_to": "국가지질공원사무국",
+      "name": "종합성과보고서",
+      "category": "고유",
+      "type": "비계량",
+      "page": "266"
+    },
+    {
+      "id": "KPI-160",
+      "kind": "단독군",
+      "applies_to": "국가지질공원사무국",
+      "name": "안전보건관리 강화",
+      "category": "공통",
+      "type": "계량",
+      "page": "267~268"
+    },
+    {
+      "id": "KPI-161",
+      "kind": "단독군",
+      "applies_to": "국가지질공원사무국",
+      "name": "정부권장정책 이행 실적",
+      "category": "공통",
+      "type": "계량",
+      "page": "269"
+    },
+    {
+      "id": "KPI-162",
+      "kind": "단독군",
+      "applies_to": "국가지질공원사무국",
+      "name": "사회적 책임 실현",
+      "category": "공통",
+      "type": "계량",
+      "page": "270"
+    },
+    {
+      "id": "KPI-163",
+      "kind": "단독군",
+      "applies_to": "국가지질공원사무국",
+      "name": "정보보안 관리 적시율",
+      "category": "공통",
+      "type": "계량",
+      "page": "271"
+    },
+    {
+      "id": "KPI-164",
+      "kind": "단독군",
+      "applies_to": "국가지질공원사무국",
+      "name": "공원정책 홍보횟수",
+      "category": "공통",
+      "type": "계량",
+      "page": "272"
+    },
+    {
+      "id": "KPI-165",
+      "kind": "단독군",
+      "applies_to": "국가지질공원사무국",
+      "name": "청렴문화지수",
+      "category": "공통",
+      "type": "계량",
+      "page": "273"
+    }
+  ]
+}
