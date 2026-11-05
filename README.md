@@ -3,6 +3,25 @@
 폐쇄망 서버에서 사용할 직원 계정·근무지·담당지표 관리 모듈의 초기 구현입니다.
 Python 3.11 이상과 표준 라이브러리만 사용하며 외부 API, CDN, 패키지 설치가 필요하지 않습니다.
 
+
+## GitHub에서 바로 실행하기
+
+[![Codespaces에서 실행](https://github.com/codespaces/badge.svg)](https://codespaces.new/sungwoo83/test?quickstart=1)
+
+1. 위 버튼을 누르고 GitHub 계정으로 로그인한 뒤 **Create codespace**를 선택합니다.
+2. 환경 준비가 끝나면 프로그램이 자동으로 시작되고 8080 포트를 전달합니다.
+3. 화면이 자동으로 열리지 않으면 하단 **PORTS**에서 **8080 → Open in Browser**를 선택합니다.
+4. 프로그램 화면에서 회원가입한 후 로그인, 근무지 변경, 담당지표 수정을 사용할 수 있습니다.
+
+기존 Codespace에는 최신 변경을 반영한 뒤 **Codespaces: Rebuild Container**를 실행합니다.
+자동 실행에 실패하면 터미널에서 `python .devcontainer/start.py`를 실행합니다.
+시작 로그는 `data/codespaces.log`에 기록됩니다.
+
+Codespaces는 GitHub가 제공하는 온라인 개발·시연 환경입니다. 계정의 이용 가능 여부와 사용량 한도가 적용됩니다.
+포트 공개 범위는 기본 Private를 유지하고, 테스트용 계정·비밀번호를 사용하세요.
+DB는 해당 Codespace의 data 폴더에 남지만, Codespace를 삭제하면 함께 삭제됩니다. 다른 Codespace와 DB를 공유하지 않습니다.
+실제 직원이 사용하는 폐쇄망 배포는 아래 내부망 실행 절차로 진행합니다.
+
 ## 실행
 
 ```bash
