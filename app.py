@@ -1,5 +1,7 @@
 """폐쇄망용 직원 설정 모듈. Python 3.11+, 외부 패키지 불필요."""
 import argparse
+import management
+from urllib.parse import urlsplit, parse_qs
 import hashlib
 import hmac
 import json
@@ -17,6 +19,8 @@ ROOT = Path(__file__).resolve().parent
 CATALOG_PATH = ROOT / 'catalog.json'
 DEMO = not CATALOG_PATH.exists()
 CATALOG = json.loads((ROOT / 'catalog.example.json' if DEMO else CATALOG_PATH).read_text())
+if not any(d['id']=='SYS-PERFORMANCE' for d in CATALOG['departments']):
+    CATALOG['departments'].append({'id':'SYS-PERFORMANCE','name':'성과혁신실','group':'평가총괄','kind':'운영'})
 DB = ROOT / 'data' / 'performance.sqlite3'
 SECURE = False
 TTL = 8 * 3600
@@ -45,26 +49,35 @@ def initialize():
         CREATE TABLE IF NOT EXISTS attempts (
           scope TEXT PRIMARY KEY, failures INTEGER NOT NULL, window_start REAL NOT NULL);
         ''')
+        management.initialize(db)
 
 def now():
     return datetime.now(timezone.utc).isoformat()
 
-def available(department_id):
+def available(department_id, db=None):
     dept = next((d for d in CATALOG['departments'] if d['id'] == department_id), None)
     if not dept:
         return []
     target = dept.get('indicator_department', dept['name'])
     if dept['kind'] in ('지역본부', '사무소', '생태탐방원'):
         target = dept['kind']
-    return [k for k in CATALOG['indicators'] if k['kind'] == dept['kind'] and k['applies_to'] == target]
+    if db is None:
+        with connect() as connection:
+            items = management.effective_catalog(connection, CATALOG)['indicators']
+    else:
+        items = management.effective_catalog(db, CATALOG)['indicators']
+    return [k for k in items if k['kind'] == dept['kind'] and k['applies_to'] == target]
 
 def profile(row):
     return {k: json.loads(row[k]) if k == 'indicators' else row[k]
-            for k in ('employee_id', 'department_id', 'indicators', 'revision')}
+            for k in ('employee_id', 'department_id', 'indicators', 'revision', 'role', 'admin_department_id')}
 
 def selection(data):
     dept, values = data.get('department_id'), data.get('indicators')
     allowed = {k['id'] for k in available(dept)}
+    if dept == 'SYS-PERFORMANCE':
+        if values != []: raise ValueError('평가총괄 부서는 담당지표를 비워 주세요.')
+        return dept, []
     if not allowed:
         raise ValueError('근무지를 선택해 주세요.')
     if not isinstance(values, list) or not values or len(values) > 165:
@@ -116,8 +129,19 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split('?')[0]
         if path == '/api/catalog':
-            return self.reply(200, {'demo': DEMO, 'departments': CATALOG['departments'],
-                'indicators_by_department': {d['id']: available(d['id']) for d in CATALOG['departments']}})
+            with connect() as db:
+                return self.reply(200, {'demo': DEMO, 'departments': CATALOG['departments'],
+                    'indicators_by_department': {d['id']: available(d['id'], db) for d in CATALOG['departments']}})
+        if path == '/api/monthly' or path.startswith('/api/admin/'):
+            with connect() as db:
+                session = self.session(db)
+                if not session: return self.reply(401, {'error':'로그인이 필요합니다.'})
+                user = db.execute('SELECT * FROM users WHERE employee_id=?', (session['employee_id'],)).fetchone()
+                params = {k:v[0] for k,v in parse_qs(urlsplit(self.path).query).items()}
+                try:
+                    return self.reply(200, management.get(db,user,path,params,management.effective_catalog(db,CATALOG),available))
+                except management.APIError as exc:
+                    return self.reply(exc.status, {'error':str(exc)})
         if path == '/api/me':
             with connect() as db:
                 session = self.session(db)
@@ -168,7 +192,7 @@ class Handler(BaseHTTPRequestHandler):
                         dept, indicators = selection(data)
                         if db.execute('SELECT 1 FROM users WHERE employee_id=?', (employee,)).fetchone():
                             return self.reply(409, {'error': '이미 가입된 사번입니다. 로그인해 주세요.'})
-                        db.execute('INSERT INTO users VALUES(?,?,?,?,1,?)', (employee, password_hash(password), dept, json.dumps(indicators), now()))
+                        db.execute('INSERT INTO users(employee_id,password_hash,department_id,indicators,revision,created_at) VALUES(?,?,?,?,1,?)', (employee, password_hash(password), dept, json.dumps(indicators), now()))
                         db.execute('INSERT INTO changes(employee_id,after_json,changed_at) VALUES(?,?,?)', (employee, json.dumps({'department_id': dept, 'indicators': indicators}), now()))
                     else:
                         row = db.execute('SELECT * FROM users WHERE employee_id=?', (employee,)).fetchone()
@@ -192,6 +216,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(401, {'error': '로그인이 필요합니다.'})
                 if not hmac.compare_digest(str(data.get('csrf', '')), session['csrf']):
                     return self.reply(403, {'error': '세션을 새로고침하고 다시 시도해 주세요.'})
+                user = db.execute('SELECT * FROM users WHERE employee_id=?', (session['employee_id'],)).fetchone()
+                if self.path.startswith('/api/monthly/') or self.path.startswith('/api/admin/'):
+                    result = management.post(db,user,self.path,data,management.effective_catalog(db,CATALOG),available)
+                    db.commit()
+                    return self.reply(200,result)
                 if self.path == '/api/logout':
                     db.execute('DELETE FROM sessions WHERE token_hash=?', (session['token_hash'],))
                     db.commit()
@@ -201,6 +230,8 @@ class Handler(BaseHTTPRequestHandler):
                     row = db.execute('SELECT * FROM users WHERE employee_id=?', (session['employee_id'],)).fetchone()
                     if data.get('revision') != row['revision']:
                         return self.reply(409, {'error': '다른 화면에서 설정이 변경되었습니다. 새로고침해 주세요.'})
+                    if row['role']=='superadmin' and dept!='SYS-PERFORMANCE':
+                        return self.reply(409, {'error':'수퍼관리자의 소속은 성과혁신실로 유지해야 합니다.'})
                     before = {'department_id': row['department_id'], 'indicators': json.loads(row['indicators'])}
                     after = {'department_id': dept, 'indicators': indicators}
                     if before != after:
@@ -209,6 +240,8 @@ class Handler(BaseHTTPRequestHandler):
                     db.commit()
                     return self.reply(200, {'ok': True})
                 return self.reply(404, {'error': '요청을 찾을 수 없습니다.'})
+        except management.APIError as exc:
+            self.reply(exc.status, {'error':str(exc)})
         except (ValueError, TypeError, UnicodeError) as exc:
             self.reply(400, {'error': str(exc) if type(exc) is ValueError else '입력값을 확인해 주세요.'})
         except sqlite3.Error:
