@@ -56,7 +56,7 @@ function setMode(value) {
   $('password-confirm').required = signup; $('register-department').required = signup; $('auth-error').textContent = '';
 }
 async function refresh() {
-  current = await api('/api/me'); render(); await setupManagement();
+  current = await api('/api/me'); render(); displayPage(); await setupManagement();
 }
 function render() {
   $('auth').hidden = true; $('home').hidden = false;
@@ -73,6 +73,7 @@ function render() {
     row.append(node('span','index',String(i+1).padStart(2,'0')),text,node('span',k.type === '계량' ? 'tag teal' : 'tag purple',k.type)); list.append(row);
   }
   const history = $('history'); history.replaceChildren();
+  if(!current.history.length)history.append(node('p','empty','등록된 변경 이력이 없습니다.'));
   for (const h of current.history) {
     const before = h.before_json ? JSON.parse(h.before_json) : null, after = JSON.parse(h.after_json);
     const row = node('div','history-row');
@@ -80,6 +81,23 @@ function render() {
     row.append(node('span','',label),node('span','muted small',`담당지표 ${after.indicators.length}개 · ${new Date(h.changed_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})}`)); history.append(row);
   }
 }
+function displayPage(navigate=false){
+  if(!current)return;
+  const hash=location.hash,isHistory=hash==='#history';
+  $('work-view').hidden=isHistory;$('history-view').hidden=!isHistory;
+  document.querySelector('.breadcrumb').textContent=isHistory?'/ 근무지·담당지표 변경 이력':'/ 나의 업무 홈';
+  const active=isHistory?'history-nav':hash==='#monthly-panel'?'monthly-nav':hash==='#super-panel'&&current.user.role==='superadmin'?'super-nav':'work-nav';
+  for(const id of ['work-nav','monthly-nav','super-nav','history-nav']){
+    $(id).classList.toggle('nav-active',id===active);
+    if(id===active)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');
+  }
+  if(navigate){
+    const target=!isHistory&&['#monthly-panel','#super-panel'].includes(hash)?document.getElementById(hash.slice(1)):null;
+    if(target&&!target.hidden)target.scrollIntoView();else window.scrollTo({top:0});
+  }
+}
+window.addEventListener('hashchange',()=>displayPage(true));
+
 function openProfile(title) {
   $('dialog-title').textContent = title; $('profile-error').textContent = '';
   $('change-department').value = current.user.department_id; $('change-department').disabled=current.user.role==='superadmin'; choices('change',current.user.indicators); $('profile-dialog').showModal();
