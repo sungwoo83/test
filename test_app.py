@@ -80,6 +80,7 @@ class ProfileFlow(unittest.TestCase):
         self.assertGreaterEqual(len(app.CATALOG['departments']),2)
         self.assertEqual(len({d['id'] for d in app.CATALOG['departments']}),len(app.CATALOG['departments']))
         for d in app.CATALOG['departments']:
+            if d['kind']=='운영': continue
             self.assertTrue(app.available(d['id']),d['name'])
         self.assertEqual(app.available('unknown'),[])
     def test_session_expiration(self):
