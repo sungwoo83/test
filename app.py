@@ -14,7 +14,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-CATALOG = json.loads((ROOT / 'catalog.json').read_text())
+CATALOG_PATH = ROOT / 'catalog.json'
+DEMO = not CATALOG_PATH.exists()
+CATALOG = json.loads((ROOT / 'catalog.example.json' if DEMO else CATALOG_PATH).read_text())
 DB = ROOT / 'data' / 'performance.sqlite3'
 SECURE = False
 TTL = 8 * 3600
@@ -51,7 +53,7 @@ def available(department_id):
     dept = next((d for d in CATALOG['departments'] if d['id'] == department_id), None)
     if not dept:
         return []
-    target = '홍보비서실' if dept['name'] == '홍보팀' else dept['name']
+    target = dept.get('indicator_department', dept['name'])
     if dept['kind'] in ('지역본부', '사무소', '생태탐방원'):
         target = dept['kind']
     return [k for k in CATALOG['indicators'] if k['kind'] == dept['kind'] and k['applies_to'] == target]
@@ -114,7 +116,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split('?')[0]
         if path == '/api/catalog':
-            return self.reply(200, {'departments': CATALOG['departments'],
+            return self.reply(200, {'demo': DEMO, 'departments': CATALOG['departments'],
                 'indicators_by_department': {d['id']: available(d['id']) for d in CATALOG['departments']}})
         if path == '/api/me':
             with connect() as db:
