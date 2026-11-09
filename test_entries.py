@@ -110,7 +110,7 @@ class EntryFlow(unittest.TestCase):
         self.assertTrue(headers['Content-Disposition'].startswith('attachment;'))
         self.assertEqual(headers['Content-Type'],'application/octet-stream')
         self.cookie='';self.assertEqual(self.binary(path)[0],401)
-        self.request('/api/register',{'employee_id':'outside','password':self.password,'department_id':self.b['id'],'indicators':self.kb})
+        self.request('/api/register',{'employee_id':'outside','display_name':'외부 직원','password':self.password,'department_id':self.b['id'],'indicators':self.kb})
         self.assertEqual(self.binary(path)[0],403)
         self.cookie=self.worker
         self.assertEqual(self.post('/api/evidence/delete',{'file_id':file['id']})[0],200)
