@@ -1,6 +1,7 @@
 """Trusted server-console account setup; passwords never enter source or argv."""
 import argparse
 import getpass
+import json
 import app
 import management
 
@@ -17,6 +18,14 @@ def read_password():
 
 def validate_target(db,args,parser):
     user=db.execute('SELECT * FROM users WHERE employee_id=?',(args.employee_id,)).fetchone()
+    if args.command=='promote-superadmin':
+        if not user:parser.error('이미 가입한 계정을 지정해 주세요. 신규 계정은 create-superadmin 또는 add-superadmin을 사용합니다.')
+        department=args.department_id or user['department_id']
+        if not management.can_be_superadmin(department,app.CATALOG):
+            parser.error('성과혁신실 또는 AI정보융합실을 지정해 주세요.')
+        if args.name and (not args.name.strip() or len(args.name.strip())>100 or any(ord(c)<32 for c in args.name)):
+            parser.error('성명을 1~100자로 입력해 주세요.')
+        return user
     if args.command=='add-superadmin':
         if user: parser.error('이미 가입된 사번입니다. 웹의 권한 관리에서 지정해 주세요.')
         if not management.can_be_superadmin(args.department_id,app.CATALOG):
@@ -39,13 +48,14 @@ def validate_target(db,args,parser):
 
 def main():
     parser=argparse.ArgumentParser(description='서버 운영자용 수퍼관리자 지정·비밀번호 설정')
-    parser.add_argument('command',choices=['bootstrap-superadmin','create-superadmin','add-superadmin','set-superadmin-password'])
+    parser.add_argument('command',choices=['bootstrap-superadmin','create-superadmin','add-superadmin','promote-superadmin','set-superadmin-password'])
     parser.add_argument('--employee-id',required=True)
     parser.add_argument('--name',default='',help='계정에 표시할 직원 성명')
-    parser.add_argument('--department-id',default='SYS-PERFORMANCE',help='신규 수퍼관리자 소속 부서 ID')
+    parser.add_argument('--department-id',default=None,help='신규·권한 복구 계정의 소속 부서 ID')
     parser.add_argument('--set-password',action='store_true',help='최초 지정 시 비밀번호도 새로 입력')
     parser.add_argument('--db',type=app.Path,default=app.DB)
     args=parser.parse_args()
+    if args.command in ('create-superadmin','add-superadmin') and args.department_id is None:args.department_id='SYS-PERFORMANCE'
     app.DB=args.db
     app.initialize()
     with app.connect() as db:
@@ -61,7 +71,6 @@ def main():
         db.execute('BEGIN IMMEDIATE')
         user=validate_target(db,args,parser)
         if args.command in ('create-superadmin','add-superadmin'):
-            import json
             import re
             if not re.fullmatch(r'[A-Za-z0-9_-]{1,30}',args.employee_id):
                 parser.error('사번 형식을 확인해 주세요.')
@@ -71,14 +80,22 @@ def main():
                 (args.employee_id,encoded,args.department_id,json.dumps(indicators),app.now(),args.name.strip()))
             db.execute('INSERT INTO changes(employee_id,after_json,changed_at) VALUES(?,?,?)',
                 (args.employee_id,json.dumps({'department_id':args.department_id,'indicators':indicators}),app.now()))
+        if args.command=='promote-superadmin':
+            department=args.department_id or user['department_id']
+            indicators=json.loads(user['indicators']) if department==user['department_id'] else [k['id'] for k in app.available(department,db)]
+            name=args.name.strip() if args.name else user['display_name']
+            db.execute("UPDATE users SET role='superadmin',admin_department_id=NULL,department_id=?,indicators=?,display_name=?,revision=revision+1 WHERE employee_id=?",(department,json.dumps(indicators),name,args.employee_id))
+            if department!=user['department_id']:
+                db.execute('INSERT INTO changes(employee_id,before_json,after_json,changed_at) VALUES(?,?,?,?)',
+                    (args.employee_id,json.dumps({'department_id':user['department_id'],'indicators':json.loads(user['indicators'])}),json.dumps({'department_id':department,'indicators':indicators}),app.now()))
         if args.command=='bootstrap-superadmin':
             db.execute("UPDATE users SET role='superadmin',admin_department_id=NULL WHERE employee_id=?",(args.employee_id,))
         if encoded is not None:
             db.execute('UPDATE users SET password_hash=? WHERE employee_id=?',(encoded,args.employee_id))
             db.execute('DELETE FROM attempts WHERE scope=?',('employee:'+args.employee_id,))
         db.execute('DELETE FROM sessions WHERE employee_id=?',(args.employee_id,))
-        management.audit(db,'SERVER-CONSOLE','최초 수퍼관리자 지정' if args.command in ('bootstrap-superadmin','create-superadmin') else ('수퍼관리자 추가' if args.command=='add-superadmin' else '수퍼관리자 비밀번호 설정'),None,args.employee_id,
-            {'role':user['role']} if user else None,{'role':'superadmin','password_changed':encoded is not None},'서버 운영자 콘솔에서 설정')
+        management.audit(db,'SERVER-CONSOLE','최초 수퍼관리자 지정' if args.command in ('bootstrap-superadmin','create-superadmin') else ('수퍼관리자 추가' if args.command=='add-superadmin' else ('수퍼관리자 권한 복구' if args.command=='promote-superadmin' else '수퍼관리자 비밀번호 설정')),None,args.employee_id,
+            {'role':user['role'],'department_id':user['department_id'],'admin_department_id':user['admin_department_id']} if user else None,{'role':'superadmin','department_id':args.department_id or (user['department_id'] if user else None),'password_changed':encoded is not None},'서버 운영자 콘솔에서 설정')
     print('수퍼관리자 설정 완료. 해당 계정으로 다시 로그인하세요.')
 
 
