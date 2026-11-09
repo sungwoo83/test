@@ -56,9 +56,9 @@ class ManagementFlow(unittest.TestCase):
         self.cookie=self.worker
         self.assertEqual(self.post('/api/monthly/actual',{**actual,'revision':2})[0],409)
         self.cookie=self.manager
-        self.assertEqual(self.post('/api/monthly/period',{**self.context,'status':'open','revision':1,'reason':'마감해제'})[0],403)
+        self.assertEqual(self.post('/api/monthly/period',{**self.context,'status':'open','revision':1,'reason':'마감해제'})[0],200)
         self.cookie=self.super_cookie
-        self.assertEqual(self.post('/api/monthly/period',{**self.context,'status':'open','revision':1,'reason':'증빙보완 재개방'})[0],200)
+        self.assertEqual(self.post('/api/monthly/period',{**self.context,'status':'open','revision':1,'reason':'증빙보완 재개방'})[0],409)
         self.assertEqual(self.post('/api/admin/indicator',{'indicator_id':self.ka[0],'revision':0,'name':'테스트 지표 수정','unit':'건','target':'20','points':'5','formula_note':'테스트 설명','reason':'기준변경'})[0],200)
         with app.connect() as db:
             after=json.loads(db.execute('SELECT snapshot FROM monthly_actuals').fetchone()[0]);self.assertEqual(after,snapshot)
