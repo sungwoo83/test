@@ -96,7 +96,7 @@ def save_settings(db,user,data,catalog,available):
 def save_actual(db,user,data,indicator,row,year,month,department):
     actor=user['employee_id'];why=m.reason(data)
     if user['role']=='employee' and indicator['id'] not in json.loads(user['indicators']):raise m.APIError(403,'담당지표만 입력할 수 있습니다.')
-    if row and row['adjusted'] is not None:raise m.APIError(409,'관리자가 조정을 해제한 후 입력해 주세요.')
+    if row and row['adjusted'] is not None and user['role']=='employee':raise m.APIError(409,'관리자가 조정을 해제한 후 입력해 주세요.')
     config=settings(db,department,year,indicator)
     status=data.get('status',row['status'] if row else '진행중')
     plan=data.get('future_plan',row['future_plan'] if row else '')
@@ -111,8 +111,8 @@ def save_actual(db,user,data,indicator,row,year,month,department):
         value='' if raw in (None,'') else m.number(raw)
         if status=='완료' and value=='':raise m.APIError(400,'완료 상태에는 수치 실적을 입력해 주세요.')
     definition=snapshot(indicator,config)
-    db.execute('''INSERT INTO monthly_actuals(department_id,indicator_id,year,month,actual,snapshot,revision,updated_by,updated_at,status,future_plan,narrative)
-        VALUES(?,?,?,?,?,?,1,?,?,?,?,?) ON CONFLICT(department_id,indicator_id,year,month) DO UPDATE SET
+    db.execute('''INSERT INTO monthly_actuals(department_id,indicator_id,year,month,actual,snapshot,revision,updated_by,updated_at,status,future_plan,narrative,employee_id)
+        VALUES(?,?,?,?,?,?,1,?,?,?,?,?,?) ON CONFLICT(department_id,indicator_id,year,month,employee_id) DO UPDATE SET
         actual=excluded.actual,revision=monthly_actuals.revision+1,updated_by=excluded.updated_by,updated_at=excluded.updated_at,
-        status=excluded.status,future_plan=excluded.future_plan,narrative=excluded.narrative''',
-        (department,indicator['id'],year,month,value,json.dumps(definition,ensure_ascii=False),actor,m.stamp(),status,plan,narrative))
+        status=excluded.status,future_plan=excluded.future_plan,narrative=excluded.narrative,adjusted=NULL,adjustment_reason=NULL''',
+        (department,indicator['id'],year,month,value,json.dumps(definition,ensure_ascii=False),actor,m.stamp(),status,plan,narrative,data.get('employee_id',actor)))
