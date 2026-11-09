@@ -150,7 +150,23 @@ class Handler(BaseHTTPRequestHandler):
             with connect() as db:
                 return self.reply(200, {'demo': DEMO, 'departments': CATALOG['departments'],
                     'indicators_by_department': {d['id']: available(d['id'], db) for d in CATALOG['departments']}})
-        if path == '/api/monthly' or path.startswith('/api/admin/'):
+        if path == '/api/review.xlsx':
+            try:
+                import review
+                with connect() as db:
+                    session=self.session(db)
+                    if not session:return self.reply(401, {'error':'로그인이 필요합니다.'})
+                    user=db.execute('SELECT * FROM users WHERE employee_id=?',(session['employee_id'],)).fetchone()
+                    params={k:v[0] for k,v in parse_qs(urlsplit(self.path).query).items()}
+                    report=review.report(db,user,params,management.effective_catalog(db,CATALOG),available)
+                    body=review.export(report)
+                self.send_response(200)
+                self.headers_common('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',len(body))
+                filename=f'monthly-performance-{report["year"]}-{report["month"]:02d}.xlsx'
+                self.send_header('Content-Disposition',f'attachment; filename="{filename}"')
+                self.end_headers();self.wfile.write(body);return
+            except management.APIError as exc:return self.reply(exc.status, {'error':str(exc)})
+        if path in ('/api/monthly','/api/review') or path.startswith('/api/admin/'):
             with connect() as db:
                 session = self.session(db)
                 if not session: return self.reply(401, {'error':'로그인이 필요합니다.'})
