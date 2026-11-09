@@ -83,17 +83,25 @@ function render() {
 }
 function displayPage(navigate=false){
   if(!current)return;
-  const hash=location.hash,isHistory=hash==='#history';
-  $('work-view').hidden=isHistory;$('history-view').hidden=!isHistory;
-  document.querySelector('.breadcrumb').textContent=isHistory?'/ 근무지·담당지표 변경 이력':'/ 나의 업무 홈';
-  const active=isHistory?'history-nav':hash==='#monthly-panel'?'monthly-nav':hash==='#super-panel'&&current.user.role==='superadmin'?'super-nav':'work-nav';
+  const routes={
+    '#monthly-panel':{view:'monthly-view',nav:'monthly-nav',label:'월별 실적 관리'},
+    '#history':{view:'history-view',nav:'history-nav',label:'근무지·담당지표 변경 이력'},
+    '#super-panel':{view:'admin-view',nav:'super-nav',label:'수퍼관리자'}
+  };
+  const homeRoute={view:'work-view',nav:'work-nav',label:'나의 업무 홈'};
+  let route=routes[location.hash]||homeRoute;
+  if(route.view==='admin-view'&&current.user.role!=='superadmin')route=homeRoute;
+  for(const id of ['work-view','monthly-view','admin-view','history-view'])$(id).hidden=id!==route.view;
+  document.querySelector('.breadcrumb').textContent='/ '+route.label;
+  document.title=route.label+' | 내부평가 성과관리';
   for(const id of ['work-nav','monthly-nav','super-nav','history-nav']){
-    $(id).classList.toggle('nav-active',id===active);
-    if(id===active)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');
+    $(id).classList.toggle('nav-active',id===route.nav);
+    if(id===route.nav)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');
   }
   if(navigate){
-    const target=!isHistory&&['#monthly-panel','#super-panel'].includes(hash)?document.getElementById(hash.slice(1)):null;
-    if(target&&!target.hidden)target.scrollIntoView();else window.scrollTo({top:0});
+    const heading=$(route.view).querySelector('.page-heading h1');
+    if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}
+    window.scrollTo({top:0});
   }
 }
 window.addEventListener('hashchange',()=>displayPage(true));
