@@ -57,6 +57,7 @@ function renderMetricCards(){
     rate.append(node('span','metric-label','목표 대비 달성률'),node('strong','',metric.achievement_percent!=null?prettyNumber(metric.achievement_percent)+'%':'—'));
     numbers.append(actual,rate);card.append(numbers);
     const goal=node('div','metric-goal');goal.append(node('span','',metric.settings.entry_mode==='text'?'완료 상태로 제출':`목표 ${prettyNumber(metric.settings.target)} ${metric.settings.unit||''}`),node('span','',`가중치 ${prettyNumber(metric.settings.weight)}점`));card.append(goal);
+    const refView=manualReference(metric.settings);if(refView)card.append(refView);
     const chartCaption=node('div','chart-caption');chartCaption.append(node('span','',metric.graph_mode==='status'?'월별 진행상태':metric.graph_mode==='actual'?'월별 실적 · 목표 미설정':'월별 목표 대비 달성률'),node('small','',metric.graph_mode==='status'?'상태·마감 기준':`${metric.curve_label} · 시점 계획 ${prettyNumber(metric.expected_percent)}%`));card.append(chartCaption);
     const tooltip=node('p','chart-tooltip','그래프의 점에 마우스를 올리거나 눌러 상세 수치를 확인하세요.');tooltip.setAttribute('aria-live','polite');
     card.append(metricChart(metric,data,tooltip),tooltip);
