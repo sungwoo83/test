@@ -20,7 +20,7 @@ def accessible_record(db,user,record_id,catalog,write=False):
     m.department_scope(user,row['department_id'],catalog)
     if user['role']=='employee':
         import json
-        if row['indicator_id'] not in json.loads(user['indicators']):raise m.APIError(403,'담당지표의 증빙만 접근할 수 있습니다.')
+        if row['employee_id']!=user['employee_id'] or row['indicator_id'] not in json.loads(user['indicators']):raise m.APIError(403,'담당지표의 증빙만 접근할 수 있습니다.')
     if write and m.period(db,row['department_id'],row['year'],row['month'])['status']=='closed':
         raise m.APIError(409,'마감된 월의 증빙은 변경할 수 없습니다.')
     return row
