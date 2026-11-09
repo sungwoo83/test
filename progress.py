@@ -25,6 +25,9 @@ def settings(db,department,year,indicator):
     base={'target':indicator.get('target'),'weight':indicator.get('points'),'unit':indicator.get('unit',''),
           'entry_mode':'numeric' if indicator['type']=='계량' else 'text','direction':'higher','dashboard_curve':'linear','revision':0}
     if row:base.update(json.loads(row['definition']));base['revision']=row['revision']
+    import manual_defaults
+    ref=manual_defaults.reference(department,year,indicator)
+    if ref:base['manual_reference']=ref
     return base
 
 def snapshot(indicator,config):
