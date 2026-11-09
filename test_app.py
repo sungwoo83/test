@@ -36,7 +36,7 @@ class ProfileFlow(unittest.TestCase):
         if cookie: self.cookie=cookie.split(';')[0]
         c.close(); return status,value
     def register(self,employee='000123'):
-        return self.request('/api/register',{'employee_id':employee,'password':self.password,'department_id':self.a['id'],'indicators':self.ka})
+        return self.request('/api/register',{'employee_id':employee,'display_name':'테스트 직원 '+employee,'password':self.password,'department_id':self.a['id'],'indicators':self.ka})
     def test_full_flow_and_database_persistence(self):
         self.assertEqual(self.request('/api/me')[0],401)
         self.assertEqual(self.register()[0],200)
@@ -61,6 +61,21 @@ class ProfileFlow(unittest.TestCase):
         with app.connect() as db:
             hashed=db.execute('SELECT password_hash FROM users').fetchone()[0]
             self.assertNotIn(self.password,hashed)
+    def test_registration_requires_name_and_preserves_it_after_login(self):
+        payload={'employee_id':'NAMED001','password':self.password,'department_id':self.a['id'],'indicators':self.ka}
+        for name in [None,'','   ','이름'*51,123,'잘못된\n이름']:
+            self.assertEqual(self.request('/api/register',{**payload,'display_name':name})[0],400)
+        self.assertEqual(self.request('/api/register',{**payload,'display_name':'  테스트 직원  '})[0],200)
+        me=self.request('/api/me')[1];self.assertEqual(me['user']['display_name'],'테스트 직원')
+        self.request('/api/logout',{'csrf':me['csrf']})
+        self.assertEqual(self.request('/api/login',{'employee_id':'NAMED001','password':self.password})[0],200)
+        self.assertEqual(self.request('/api/me')[1]['user']['display_name'],'테스트 직원')
+    def test_existing_account_without_name_can_still_login(self):
+        self.register()
+        with app.connect() as db:db.execute("UPDATE users SET display_name='' WHERE employee_id='000123'")
+        self.cookie=''
+        self.assertEqual(self.request('/api/login',{'employee_id':'000123','password':self.password})[0],200)
+
     def test_validation_and_authentication_limits(self):
         self.assertEqual(self.register()[0],200)
         self.assertEqual(self.request('/api/login',{'employee_id':'000123','password':self.password}, {'X-Requested-With':''})[0],403)
