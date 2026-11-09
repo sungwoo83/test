@@ -193,8 +193,9 @@ async function loadMonthly(){
     for(const item of monthly.items){
       const k=item.indicator,r=item.record,config=r?JSON.parse(r.snapshot):item.settings,row=node('tr'),name=node('td','',k.name);
       name.append(node('small','',k.type+(config.unit?' · '+config.unit:'')+(r?' · 작성 당시: '+JSON.parse(r.snapshot).name:'')));
-      const goal=node('td','',config.target!=null?config.target+(config.unit?' '+config.unit:''):'목표 미설정');
+      const goal=node('td','',config.entry_mode==='text'?'서술형 · 달성률 미산정':config.target!=null?config.target+(config.unit?' '+config.unit:''):'목표 미설정');
       goal.append(node('small','',`가중치 ${config.weight ?? '미설정'}${config.weight!=null?'점':''}`));
+      const refView=manualReference(config);if(refView)name.append(refView);
       const actual=node('td','',r?(config.entry_mode==='text'?(r.narrative||'내용 미입력'):(r.actual!==''?r.actual:'수치 미입력')):'미입력');actual.className='narrative-cell';
       if(r?.adjusted!=null)actual.append(node('small','',`조정: ${r.adjusted} · 반영: ${r.adjusted}`));
       const rate=node('td','',r?r.achievement.label:'—');if(r?.achievement.formula)rate.append(node('small','',r.achievement.formula));
@@ -239,15 +240,21 @@ function previewAchievement(config,value){
   const percent=(config.direction==='lower'?target/actual:actual/target)*100;
   return `목표 대비 ${percent.toFixed(2)}% · ${config.direction==='lower'?'목표 ÷ 실적':'실적 ÷ 목표'} × 100 (저장 전 예상값)`;
 }
+function manualReference(config){
+  const ref=config.manual_reference;if(!ref)return null;
+  const details=node('details','notice manual-reference'),summary=node('summary','',`편람 세부목표 · ${ref.page}쪽 · 지표 가중치 ${ref.weight}점`);details.append(summary);
+  const list=node('ul');for(const part of ref.components)list.append(node('li','',`${part.name}: ${part.goal} (세부가중치 ${part.weight}점)`));details.append(list,node('p','small',ref.note));return details;
+}
 function openActual(item,adjust,scope=monthly.context){
   const context={...scope,department_id:item.department_id||scope.department_id,employee_id:item.employee_id||item.record?.employee_id||current.user.employee_id,indicator_id:item.indicator.id,revision:item.record?.revision||0};
   const config=item.record?JSON.parse(item.record.snapshot):item.settings;
   action(adjust?'실적 조정':'실적 입력',item.indicator.name+(adjust?' · 원래 입력값을 보존합니다. 빈 값은 조정 해제입니다.':''),adjust?'/api/monthly/adjust':'/api/monthly/actual',()=>{
-    $('action-fields').append(node('p','readonly',`목표: ${config.target ?? '미설정'} ${config.unit||''} · 가중치: ${config.weight ?? '미설정'}점`));
+    $('action-fields').append(node('p','readonly',config.entry_mode==='text'?`서술형 · 수치 목표 없음 · 가중치: ${config.weight ?? '미설정'}점`:`목표: ${config.target ?? '미설정'} ${config.unit||''} · 가중치: ${config.weight ?? '미설정'}점`));
     if(adjust)$('action-fields').append(node('p','readonly','원래 입력 실적: '+item.record.actual));
+    const refView=manualReference(config);if(refView){refView.open=true;$('action-fields').append(refView);}
     let valueInput;
     if(config.entry_mode!=='text'){
-      valueInput=field('actual-value',adjust?'조정 실적 (비우면 조정 해제)':`해당 월 기준 실적${config.unit?' ('+config.unit+')':''}`,adjust?item.record?.adjusted:item.record?.actual,{numeric:true,maxLength:30});
+      valueInput=field('actual-value',adjust?'조정 실적 (비우면 조정 해제)':`해당 월 기준 ${config.unit==='환산점'?'환산점수 합계':'실적'}${config.unit?' ('+config.unit+')':''}`,adjust?item.record?.adjusted:item.record?.actual,{numeric:true,maxLength:30});
       if(config.unit==='%')$('action-fields').append(node('p','hint','예: 실적 20%는 20으로 입력합니다. 목표 대비 달성률은 별도로 계산합니다.'));
       const preview=node('p','achievement-preview');preview.textContent=previewAchievement(config,valueInput.value);valueInput.oninput=()=>preview.textContent=previewAchievement(config,valueInput.value);$('action-fields').append(preview);
     }
@@ -268,6 +275,7 @@ function openActual(item,adjust,scope=monthly.context){
 function openSettings(item,scope=monthly.context){
   const config=item.settings,context={...scope,department_id:item.department_id||scope.department_id,indicator_id:item.indicator.id,revision:config.revision};
   action('지표 목표·가중치 설정',`${departmentLabel(context.department_id)} · ${context.year}년 · ${item.indicator.name}. 같은 연도의 미마감 실적에 반영하며 마감월은 보존합니다.`,'/api/monthly/settings',()=>{
+    const refView=manualReference(config);if(refView){refView.open=true;$('action-fields').append(refView);}
     field('setting-mode','실적 입력 방식',config.entry_mode,{options:[['numeric','수치 입력'],['text','서술형 입력']]});
     field('setting-target','목표치',config.target,{numeric:true,maxLength:30});field('setting-weight','가중치 (배점)',config.weight,{numeric:true,maxLength:30});
     field('setting-unit','실적 단위 (건, 명, %, 원 등)',config.unit,{maxLength:30});
