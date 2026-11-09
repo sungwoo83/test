@@ -76,31 +76,24 @@ function render() {
     text.append(node('strong','',k.name),node('span','muted small',`${k.id} · ${k.category} · 편람 ${k.page}쪽`));
     row.append(node('span','index',String(i+1).padStart(2,'0')),text,node('span',k.type === '계량' ? 'tag teal' : 'tag purple',k.type)); list.append(row);
   }
-  const history = $('history'); history.replaceChildren();
-  if(!current.history.length)history.append(node('p','empty','등록된 변경 이력이 없습니다.'));
-  for (const h of current.history) {
-    const before = h.before_json ? JSON.parse(h.before_json) : null, after = JSON.parse(h.after_json);
-    const row = node('div','history-row');
-    const label = before ? (before.department_id !== after.department_id ? `${dept(before.department_id).name} → ${dept(after.department_id).name}` : `${dept(after.department_id).name} · 담당지표 변경`) : `${dept(after.department_id).name} · 최초 등록`;
-    row.append(node('span','',label),node('span','muted small',`담당지표 ${after.indicators.length}개 · ${new Date(h.changed_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})}`)); history.append(row);
-  }
+
 }
 function displayPage(navigate=false){
   if(!current)return;
   const routes={
     '#monthly-panel':{view:'monthly-view',nav:'monthly-nav',label:'월별 실적 관리'},
     '#review':{view:'review-view',nav:'review-nav',label:'월별 실적 확인'},
-    '#history':{view:'history-view',nav:'history-nav',label:'근무지·담당지표 변경 이력'},
-    '#super-panel':{view:'admin-view',nav:'super-nav',label:'수퍼관리자'}
+    '#roles':{view:'roles-view',nav:'roles-nav',label:'관리자 권한 제어'},
+    '#super-panel':{view:'admin-view',nav:'super-nav',label:'전체 지표 관리'}
   };
   const homeRoute={view:'work-view',nav:'work-nav',label:'나의 업무 홈'};
   let route=routes[location.hash]||homeRoute;
-  if(route.view==='admin-view'&&current.user.role!=='superadmin')route=homeRoute;
+  if(['admin-view','roles-view'].includes(route.view)&&current.user.role!=='superadmin')route=homeRoute;
   if(route.view==='review-view'&&!isManager())route=homeRoute;
-  for(const id of ['work-view','monthly-view','review-view','admin-view','history-view'])$(id).hidden=id!==route.view;
+  for(const id of ['work-view','monthly-view','review-view','admin-view','roles-view'])$(id).hidden=id!==route.view;
   document.querySelector('.breadcrumb').textContent='/ '+route.label;
   document.title=route.label+' | 내부평가 성과관리';
-  for(const id of ['work-nav','monthly-nav','review-nav','super-nav','history-nav']){
+  for(const id of ['work-nav','monthly-nav','review-nav','super-nav','roles-nav']){
     $(id).classList.toggle('nav-active',id===route.nav);
     if(id===route.nav)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');
   }
@@ -160,7 +153,7 @@ function departmentLabel(id){return dept(id)?.name || id || '—';}
 async function setupManagement(){
   const u=current.user;
   $('header-role').textContent=roleLabels[u.role] || '직원';
-  $('super-panel').hidden=$('super-nav').hidden=u.role!=='superadmin';
+  $('super-panel').hidden=$('super-nav').hidden=$('roles-nav').hidden=u.role!=='superadmin';
   $('audit-panel').hidden=!isManager();$('review-nav').hidden=!isManager();
   $('scope-description').textContent=isManager()?"본인의 실적을 입력합니다. 직원 실적은 ‘월별 실적 확인’에서 관리하세요.":'본인 근무지의 담당지표 실적을 입력합니다.';
   const select=$('monthly-department'),old=select.value;
@@ -176,7 +169,7 @@ async function setupManagement(){
     $('monthly-year').value=localParts.find(p=>p.type==='year').value;
   }
   await loadMonthly();
-  if(u.role==='superadmin')await loadSuper();
+  if(u.role==='superadmin'){await loadSuper();await loadRoleControl();}
   if(isManager()){await setupReview();await loadAudit();}
 }
 function monthContext(){return {department_id:$('monthly-department').value,year:Number($('monthly-year').value),month:Number($('monthly-month').value)};}
@@ -287,20 +280,42 @@ function changePeriod(status){
   action(status==='closed'?'월 마감':'마감 해제',`${departmentLabel(context.department_id)} · ${context.year}년 ${context.month}월. 마감 후 실적 입력·조정이 차단됩니다.`,'/api/monthly/period',()=>{},()=>context);
 }
 async function loadSuper(){
-  const sessionCsrf=current?.csrf;
-  $('super-error').textContent='';
+  const sessionCsrf=current?.csrf;$('super-error').textContent='';
   try{
-    const [master,users]=await Promise.all([api('/api/admin/indicators'),api('/api/admin/users')]);if(current?.csrf!==sessionCsrf||current?.user.role!=='superadmin')return;masterItems=master.indicators;
-    const select=$('master-indicator'),old=select.value;select.replaceChildren();
-    for(const k of masterItems)select.append(new Option(`${k.applies_to} · ${k.name} (${k.id})`,k.id));
-    if(masterItems.some(k=>k.id===old))select.value=old;
-    $('user-rows').replaceChildren();
-    for(const u of users.users){const row=node('tr'),button=node('button','secondary','권한 변경');button.type='button';button.onclick=()=>openRole(u);
-      const cell=node('td');cell.append(button);row.append(node('td','',u.employee_id+(u.display_name?' · '+u.display_name:'')),node('td','',departmentLabel(u.department_id)),node('td','',roleLabels[u.role]),node('td','',departmentLabel(u.admin_department_id)),cell);$('user-rows').append(row);}
+    const master=await api('/api/admin/indicators');if(current?.csrf!==sessionCsrf||current?.user.role!=='superadmin')return;
+    masterItems=master.indicators;
+    for(const [id,key,label] of [['master-kind','kind','전체 기관'],['master-type','type','전체 유형']]){
+      const previous=$(id).value;$(id).replaceChildren(new Option(label,''));
+      for(const value of [...new Set(masterItems.map(k=>k[key]))])$(id).append(new Option(value,value));
+      if([...$(id).options].some(o=>o.value===previous))$(id).value=previous;
+    }
+    if(!$('bulk-year').value)$('bulk-year').value=$('monthly-year').value;
+    clearBulkPreview();renderMasterList();
   }catch(e){$('super-error').textContent=e.message;}
 }
-function openMaster(){
-  const k=masterItems.find(k=>k.id===$('master-indicator').value);if(!k)return;
+function renderMasterList(){
+  const search=$('master-search').value.trim().toLowerCase(),kind=$('master-kind').value,type=$('master-type').value;
+  const items=masterItems.filter(k=>(!kind||k.kind===kind)&&(!type||k.type===type)&&(!search||[k.id,k.name,k.applies_to,k.kind].join(' ').toLowerCase().includes(search)));
+  $('master-count').textContent=`전체 ${masterItems.length}개 중 ${items.length}개 표시`;$('master-rows').replaceChildren();
+  for(const k of items){
+    const row=node('tr'),scope=node('td','',k.applies_to);scope.append(node('small','',k.kind));
+    const note=node('td','master-note'),notePreview=node('span','master-note-preview',k.formula_note||'—');note.append(notePreview);note.title=k.formula_note||'';
+    const actionCell=node('td'),button=node('button','primary','수정');button.type='button';button.onclick=()=>openMaster(k.id);actionCell.append(button);
+    row.append(node('td','',k.id),scope,node('td','',k.name),node('td','',k.type),node('td','',k.target!=null?k.target+(k.unit?' '+k.unit:''):'미설정'),node('td','',k.points!=null?k.points+'점':'미설정'),note,actionCell);$('master-rows').append(row);
+  }
+  if(!items.length)emptyTable('master-rows',8,'검색 조건에 해당하는 지표가 없습니다.');
+}
+async function loadRoleControl(){
+  const sessionCsrf=current?.csrf;$('roles-error').textContent='';
+  try{
+    const {users}=await api('/api/admin/users');if(current?.csrf!==sessionCsrf||current?.user.role!=='superadmin')return;
+    $('user-rows').replaceChildren();
+    for(const u of users){const row=node('tr'),button=node('button','secondary','권한 변경');button.type='button';button.onclick=()=>openRole(u);
+      const cell=node('td');cell.append(button);row.append(node('td','',u.employee_id+(u.display_name?' · '+u.display_name:'')),node('td','',departmentLabel(u.department_id)),node('td','',roleLabels[u.role]),node('td','',departmentLabel(u.admin_department_id)),cell);$('user-rows').append(row);}
+  }catch(e){$('roles-error').textContent=e.message;}
+}
+function openMaster(indicatorId){
+  const k=masterItems.find(k=>k.id===indicatorId);if(!k)return;
   action('전체 지표 수정',`${k.applies_to} · ${k.id}. 기존 실적의 작성 당시 지표 정의는 보존됩니다.`,'/api/admin/indicator',()=>{
     field('master-name','지표명',k.name,{required:true});field('master-unit','단위',k.unit,{maxLength:30});
     field('master-target','목표값 (미확정이면 공란)',k.target,{numeric:true,maxLength:30});field('master-points','배점 (미확정이면 공란)',k.points,{numeric:true,maxLength:30});
@@ -328,7 +343,8 @@ async function loadAudit(){
 $('load-monthly').onclick=loadMonthly;
 for(const id of ['monthly-department','monthly-month','monthly-year'])$(id).onchange=loadMonthly;
 $('close-month').onclick=()=>changePeriod('closed');$('reopen-month').onclick=()=>changePeriod('open');
-$('load-super').onclick=loadSuper;$('edit-master').onclick=openMaster;$('load-audit').onclick=loadAudit;
+$('load-super').onclick=loadSuper;$('load-roles').onclick=loadRoleControl;$('load-audit').onclick=loadAudit;
+$('master-search').oninput=renderMasterList;for(const id of ['master-kind','master-type'])$(id).onchange=renderMasterList;
 $('close-action').onclick=$('cancel-action').onclick=()=>$('action-dialog').close();
 $('action-form').addEventListener('submit',async event=>{
   event.preventDefault();if(saving||!actionRequest)return;
@@ -404,8 +420,8 @@ $('evidence-form').addEventListener('submit',async event=>{
 let reviewData=null,reviewSequence=0;
 function clearSessionViews(){
   monthly=null;monthlySequence++;reviewData=null;reviewSequence++;masterItems=[];actionRequest=null;evidenceRecord=null;
-  for(const id of ['review-place-rows','review-employee-rows','review-detail-rows','monthly-rows','user-rows','audit-rows','history','my-indicators','action-fields','evidence-list','master-indicator'])$(id).replaceChildren();
-  $('review-nav').hidden=$('super-nav').hidden=true;$('download-review').disabled=true;
+  for(const id of ['review-place-rows','review-employee-rows','review-detail-rows','monthly-rows','user-rows','audit-rows','my-indicators','action-fields','evidence-list','master-rows','bulk-change-rows'])$(id).replaceChildren();
+  $('review-nav').hidden=$('super-nav').hidden=$('roles-nav').hidden=true;clearBulkPreview();$('download-review').disabled=true;
   for(const id of ['review-place-count','review-entered-count','review-assigned-count','review-missing-count','review-draft-count'])$(id).textContent='0';
 }
 
@@ -481,4 +497,64 @@ $('download-review').onclick=async()=>{
   }catch(e){$('review-error').textContent=e.message;}
   finally{$('download-review').disabled=!reviewData;}
 };
+
+
+let bulkState=null,bulkBusy=false;
+function clearBulkPreview(){
+  bulkState=null;$('bulk-preview').hidden=true;$('bulk-change-rows').replaceChildren();$('bulk-reason').value='';$('bulk-file').value='';$('bulk-error').textContent='';$('apply-indicator-import').disabled=true;
+}
+function bulkButtons(busy){
+  bulkBusy=busy;
+  for(const id of ['download-indicator-template','preview-indicator-import','bulk-year','bulk-file'])$(id).disabled=busy;
+  $('apply-indicator-import').disabled=busy||!bulkState||!(bulkState.master_count+bulkState.target_count);
+}
+function bulkValue(value){
+  if(value==null||value==='')return '미설정';
+  return {numeric:'수치형',text:'서술형',higher:'상향형',lower:'하향형'}[value]||String(value);
+}
+function renderBulkPreview(){
+  $('bulk-preview').hidden=false;$('bulk-change-rows').replaceChildren();
+  $('bulk-summary').textContent=`공통 지표 ${bulkState.master_count}건 · 부서별 목표 ${bulkState.target_count}건. 아직 반영되지 않았습니다.`;
+  const labels={name:'지표명',unit:'단위',target:'목표치',points:'가중치(배점)',formula_note:'산식·평가기준',weight:'가중치(배점)',entry_mode:'입력방식',direction:'달성률방식'};
+  for(const change of bulkState.changes){
+    for(const key of Object.keys(change.after)){
+      const before=change.before[key],after=change.after[key];
+      if((before??'')===(after??'')||(['target','points','weight'].includes(key)&&before!=null&&after!=null&&Number(before)===Number(after)))continue;
+      const row=node('tr'),label=node('td','',change.label);label.append(node('small','',change.key));
+      row.append(node('td','',change.sheet+' · '+change.row+'행'),label,node('td','',labels[key]||key),node('td','bulk-diff-text',bulkValue(before)),node('td','bulk-diff-text',bulkValue(after)));$('bulk-change-rows').append(row);
+    }
+  }
+  if(!bulkState.changes.length)emptyTable('bulk-change-rows',5,'수정된 값이 없습니다.');
+}
+$('bulk-year').onchange=()=>clearBulkPreview();
+$('bulk-file').onchange=()=>{bulkState=null;$('bulk-preview').hidden=true;$('bulk-change-rows').replaceChildren();$('bulk-reason').value='';$('bulk-error').textContent='';$('apply-indicator-import').disabled=true;};
+$('download-indicator-template').onclick=async()=>{
+  if(bulkBusy)return;clearBulkPreview();bulkButtons(true);
+  try{
+    const year=$('bulk-year').value,response=await fetch('/api/admin/indicators/template.xlsx?'+new URLSearchParams({year}));
+    if(!response.ok){const body=await response.json();throw new Error(body.error||'양식을 내려받을 수 없습니다.');}
+    const url=URL.createObjectURL(await response.blob()),link=node('a');link.href=url;link.download=`전체지표_수정양식_${year}.xlsx`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(e){$('bulk-error').textContent=e.message;}
+  finally{bulkButtons(false);}
+};
+$('bulk-upload-form').addEventListener('submit',async event=>{
+  event.preventDefault();if(bulkBusy)return;
+  const file=$('bulk-file').files[0];$('bulk-error').textContent='';
+  if(!file||!file.name.toLowerCase().endsWith('.xlsx')||file.size===0||file.size>5*1024*1024){$('bulk-error').textContent='5MB 이하의 XLSX 수정 양식을 선택해 주세요.';return;}
+  const csrf=current.csrf;bulkState=null;$('bulk-preview').hidden=true;bulkButtons(true);
+  try{
+    const response=await fetch('/api/admin/indicators/import-preview?'+new URLSearchParams({year:$('bulk-year').value}),{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Requested-With':'PerformanceManager','X-CSRF-Token':csrf},body:file});
+    const body=await response.json();if(!response.ok)throw new Error(body.error||'양식 검증에 실패했습니다.');
+    if(current?.csrf!==csrf)return;bulkState=body;renderBulkPreview();
+  }catch(e){if(current?.csrf===csrf)$('bulk-error').textContent=e.message;}
+  finally{bulkButtons(false);}
+});
+$('bulk-apply-form').addEventListener('submit',async event=>{
+  event.preventDefault();if(bulkBusy||!bulkState||saving)return;bulkButtons(true);$('bulk-error').textContent='';
+  try{
+    const result=await api('/api/admin/indicators/import-apply',{token:bulkState.token,csrf:current.csrf,reason:$('bulk-reason').value});
+    clearBulkPreview();catalog=await api('/api/catalog');await refresh();toast(result.change_count+'건의 지표 변경을 반영했습니다.');
+  }catch(e){$('bulk-error').textContent=e.message;}
+  finally{bulkButtons(false);}
+});
 start();
