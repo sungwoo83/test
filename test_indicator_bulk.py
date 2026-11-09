@@ -57,12 +57,14 @@ class BulkFlow(unittest.TestCase):
         self.cookie=self.worker;self.assertEqual(self.apply(preview['token'])[0],403)
 
     def test_master_and_department_preview_then_atomic_apply(self):
+        with app.connect() as db:
+            before_settings=[tuple(row) for row in db.execute('SELECT * FROM department_indicator_settings ORDER BY department_id,indicator_id,year')]
         body=change_cells(self.template(),{'xl/worksheets/sheet1.xml':{'G2':'일괄 수정 지표','I2':'20','J2':'5'},'xl/worksheets/sheet2.xml':{'G2':'20','H2':'5'}})
         status,preview=self.preview(body);self.assertEqual(status,200,preview)
         self.assertEqual(preview['master_count'],1);self.assertEqual(preview['target_count'],1)
         with app.connect() as db:
             self.assertEqual(db.execute('SELECT COUNT(*) FROM indicator_definitions').fetchone()[0],0)
-            self.assertEqual(db.execute('SELECT COUNT(*) FROM department_indicator_settings').fetchone()[0],0)
+            self.assertEqual([tuple(row) for row in db.execute('SELECT * FROM department_indicator_settings ORDER BY department_id,indicator_id,year')],before_settings)
         self.assertEqual(self.apply(preview['token'])[0],200)
         with app.connect() as db:
             catalog=management.effective_catalog(db,app.CATALOG)
