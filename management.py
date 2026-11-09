@@ -39,6 +39,8 @@ def initialize(db):
     evidence.initialize(db)
     import submissions
     submissions.migrate(db)
+    import indicator_bulk
+    indicator_bulk.initialize(db)
 
 def audit(db, actor, action, department, target, before, after, reason):
     db.execute('INSERT INTO audit_log(action,actor,department_id,target,before_json,after_json,reason,created_at) VALUES(?,?,?,?,?,?,?,?)',
@@ -136,8 +138,19 @@ def get(db,user,path,params,catalog,available):
         return {'period':period(db,department,y,m),'items':progress.enrich_items(db,department,y,items,records)}
     raise APIError(404,'요청을 찾을 수 없습니다.')
 
+def indicator_definition(data):
+    name,unit,note=data.get('name'),data.get('unit',''),data.get('formula_note','')
+    if not isinstance(name,str) or not 1<=len(name.strip())<=200 or not isinstance(unit,str) or len(unit)>30 or not isinstance(note,str) or len(note)>3000:
+        raise APIError(400,'지표명·단위·산식 설명의 길이를 확인해 주세요.')
+    definition={'name':name.strip(),'unit':unit.strip(),'target':number(data.get('target'),True),'points':number(data.get('points'),True),'formula_note':note}
+    if definition['points'] is not None and Decimal(definition['points'])<0:raise APIError(400,'배점은 0 이상이어야 합니다.')
+    return definition
+
 def post(db,user,path,data,catalog,available):
     actor=user['employee_id']
+    if path=='/api/admin/indicators/import-apply':
+        import indicator_bulk
+        return indicator_bulk.apply(db,user,data,catalog,available)
     if path=='/api/monthly/settings':
         import progress
         return progress.save_settings(db,user,data,catalog,available)
@@ -166,11 +179,7 @@ def post(db,user,path,data,catalog,available):
         original=next((k for k in catalog['indicators'] if k['id']==data.get('indicator_id')),None)
         if not original: raise APIError(400,'지표를 확인해 주세요.')
         if data.get('revision')!=original['revision']: raise APIError(409,'지표가 변경되었습니다. 목록을 다시 불러와 주세요.')
-        name,unit,note=data.get('name'),data.get('unit',''),data.get('formula_note','')
-        if not isinstance(name,str) or not 1<=len(name.strip())<=200 or not isinstance(unit,str) or len(unit)>30 or not isinstance(note,str) or len(note)>3000:
-            raise APIError(400,'지표명·단위·산식 설명의 길이를 확인해 주세요.')
-        definition={'name':name.strip(),'unit':unit.strip(),'target':number(data.get('target'),True),'points':number(data.get('points'),True),'formula_note':note}
-        if definition['points'] is not None and Decimal(definition['points'])<0: raise APIError(400,'배점은 0 이상이어야 합니다.')
+        definition=indicator_definition(data)
         rev=original['revision']+1
         db.execute('INSERT INTO indicator_definitions VALUES(?,?,?) ON CONFLICT(indicator_id) DO UPDATE SET definition=excluded.definition,revision=excluded.revision',(original['id'],json.dumps(definition,ensure_ascii=False),rev))
         audit(db,actor,'지표 수정',None,original['id'],original,{**original,**definition,'revision':rev},why)
