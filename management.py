@@ -109,6 +109,9 @@ def period(db, department, year, month):
     return dict(row) if row else {'department_id':department,'year':year,'month':month,'status':'open','revision':0}
 
 def get(db,user,path,params,catalog,available):
+    if path=='/api/dashboard':
+        import dashboard
+        return dashboard.report(db,user,params,catalog,available)
     if path=='/api/review':
         import review
         return review.report(db,user,params,catalog,available)
