@@ -23,7 +23,7 @@ def initialize(db):
 def settings(db,department,year,indicator):
     row=db.execute('SELECT * FROM department_indicator_settings WHERE department_id=? AND indicator_id=? AND year=?',(department,indicator['id'],year)).fetchone()
     base={'target':indicator.get('target'),'weight':indicator.get('points'),'unit':indicator.get('unit',''),
-          'entry_mode':'numeric' if indicator['type']=='계량' else 'text','direction':'higher','revision':0}
+          'entry_mode':'numeric' if indicator['type']=='계량' else 'text','direction':'higher','dashboard_curve':'linear','revision':0}
     if row:base.update(json.loads(row['definition']));base['revision']=row['revision']
     return base
 
@@ -68,13 +68,13 @@ def save_settings(db,user,data,catalog,available):
     before=settings(db,department,year,indicator)
     if data.get('revision')!=before['revision']:raise m.APIError(409,'목표·가중치가 변경되었습니다. 다시 조회해 주세요.')
     why=m.reason(data)
-    unit=data.get('unit','');mode=data.get('entry_mode','numeric');direction=data.get('direction','higher')
-    if not isinstance(unit,str) or len(unit)>30 or mode not in ('numeric','text') or direction not in ('higher','lower'):
+    unit=data.get('unit','');mode=data.get('entry_mode','numeric');direction=data.get('direction','higher');curve=data.get('dashboard_curve',before.get('dashboard_curve','linear'))
+    if not isinstance(unit,str) or len(unit)>30 or mode not in ('numeric','text') or direction not in ('higher','lower') or curve not in ('linear','late'):
         raise m.APIError(400,'단위와 입력 방식을 확인해 주세요.')
     target=m.number(data.get('target'),True);weight=m.number(data.get('weight'),True)
     if target is not None and Decimal(target)<0:raise m.APIError(400,'목표치는 0 이상으로 입력해 주세요.')
     if weight is not None and Decimal(weight)<0:raise m.APIError(400,'가중치는 0 이상으로 입력해 주세요.')
-    definition={'target':target,'weight':weight,'unit':unit.strip(),'entry_mode':mode,'direction':direction}
+    definition={'target':target,'weight':weight,'unit':unit.strip(),'entry_mode':mode,'direction':direction,'dashboard_curve':curve}
     # Do not reinterpret already entered text as a number or silently erase numerical data.
     rows=list(db.execute('''SELECT a.* FROM monthly_actuals a LEFT JOIN monthly_periods p
         ON p.department_id=a.department_id AND p.year=a.year AND p.month=a.month
