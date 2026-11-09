@@ -58,7 +58,7 @@ function setMode(value) {
 }
 async function refresh(landing=false) {
   const firstLoad=!current,response=await api('/api/me');if(firstLoad)clearSessionViews();current=response;
-  if(landing){$('review-department').value='';location.hash=isManager()?'#review':'#home';}
+  if(landing){$('review-department').value='';location.hash=isManager()?'#review':'#dashboard';}
   else if(firstLoad&&isManager()&&(!location.hash||location.hash==='#home'))location.hash='#review';
   render(); displayPage(); await setupManagement();
 }
@@ -81,19 +81,20 @@ function render() {
 function displayPage(navigate=false){
   if(!current)return;
   const routes={
+    '#dashboard':{view:'dashboard-view',nav:'dashboard-nav',label:'성과 대시보드'},
     '#monthly-panel':{view:'monthly-view',nav:'monthly-nav',label:'월별 실적 관리'},
     '#review':{view:'review-view',nav:'review-nav',label:'월별 실적 확인'},
     '#roles':{view:'roles-view',nav:'roles-nav',label:'관리자 권한 제어'},
     '#super-panel':{view:'admin-view',nav:'super-nav',label:'전체 지표 관리'}
   };
   const homeRoute={view:'work-view',nav:'work-nav',label:'나의 업무 홈'};
-  let route=routes[location.hash]||homeRoute;
+  let route=routes[location.hash]||(location.hash==='#home'?homeRoute:routes['#dashboard']);
   if(['admin-view','roles-view'].includes(route.view)&&current.user.role!=='superadmin')route=homeRoute;
   if(route.view==='review-view'&&!isManager())route=homeRoute;
-  for(const id of ['work-view','monthly-view','review-view','admin-view','roles-view'])$(id).hidden=id!==route.view;
+  for(const id of ['dashboard-view','work-view','monthly-view','review-view','admin-view','roles-view'])$(id).hidden=id!==route.view;
   document.querySelector('.breadcrumb').textContent='/ '+route.label;
   document.title=route.label+' | 내부평가 성과관리';
-  for(const id of ['work-nav','monthly-nav','review-nav','super-nav','roles-nav']){
+  for(const id of ['dashboard-nav','work-nav','monthly-nav','review-nav','super-nav','roles-nav']){
     $(id).classList.toggle('nav-active',id===route.nav);
     if(id===route.nav)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');
   }
@@ -103,7 +104,7 @@ function displayPage(navigate=false){
     window.scrollTo({top:0});
   }
 }
-window.addEventListener('hashchange',()=>displayPage(true));
+window.addEventListener('hashchange',()=>{displayPage(true);if(current&&location.hash==='#dashboard')loadDashboard();});
 
 function openProfile(title) {
   $('dialog-title').textContent = title; $('profile-error').textContent = '';
@@ -168,7 +169,7 @@ async function setupManagement(){
     $('monthly-month').value=localParts.find(p=>p.type==='month').value;
     $('monthly-year').value=localParts.find(p=>p.type==='year').value;
   }
-  await loadMonthly();
+  await loadMonthly();await setupDashboard();
   if(u.role==='superadmin'){await loadSuper();await loadRoleControl();}
   if(isManager()){await setupReview();await loadAudit();}
 }
@@ -271,8 +272,9 @@ function openSettings(item,scope=monthly.context){
     field('setting-target','목표치',config.target,{numeric:true,maxLength:30});field('setting-weight','가중치 (배점)',config.weight,{numeric:true,maxLength:30});
     field('setting-unit','실적 단위 (건, 명, %, 원 등)',config.unit,{maxLength:30});
     field('setting-direction','달성률 계산 방식',config.direction,{options:[['higher','상향형: 실적 ÷ 목표 × 100'],['lower','하향형: 목표 ÷ 실적 × 100']]});
+    field('setting-curve','대시보드 진행계획',config.dashboard_curve||'linear',{options:[['linear','균등 진행 (1월~11월)'],['late','연말 집중']]});
     $('action-fields').append(node('p','hint','서술형은 달성률을 산정하지 않습니다. 가중치는 달성률에 곱하지 않습니다.'));
-  },()=>({...context,entry_mode:$('setting-mode').value,target:$('setting-target').value,weight:$('setting-weight').value,unit:$('setting-unit').value,direction:$('setting-direction').value}));
+  },()=>({...context,entry_mode:$('setting-mode').value,target:$('setting-target').value,weight:$('setting-weight').value,unit:$('setting-unit').value,direction:$('setting-direction').value,dashboard_curve:$('setting-curve').value}));
 }
 function changePeriod(status){
   if(!monthly)return;
@@ -419,7 +421,7 @@ $('evidence-form').addEventListener('submit',async event=>{
 
 let reviewData=null,reviewSequence=0;
 function clearSessionViews(){
-  monthly=null;monthlySequence++;reviewData=null;reviewSequence++;masterItems=[];actionRequest=null;evidenceRecord=null;
+  clearDashboard();monthly=null;monthlySequence++;reviewData=null;reviewSequence++;masterItems=[];actionRequest=null;evidenceRecord=null;
   for(const id of ['review-place-rows','review-employee-rows','review-detail-rows','monthly-rows','user-rows','audit-rows','my-indicators','action-fields','evidence-list','master-rows','bulk-change-rows'])$(id).replaceChildren();
   $('review-nav').hidden=$('super-nav').hidden=$('roles-nav').hidden=true;clearBulkPreview();$('download-review').disabled=true;
   for(const id of ['review-place-count','review-entered-count','review-assigned-count','review-missing-count','review-draft-count'])$(id).textContent='0';
@@ -557,4 +559,4 @@ $('bulk-apply-form').addEventListener('submit',async event=>{
   }catch(e){$('bulk-error').textContent=e.message;}
   finally{bulkButtons(false);}
 });
-start();
+
