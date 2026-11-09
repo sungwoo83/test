@@ -51,6 +51,8 @@ def initialize():
           scope TEXT PRIMARY KEY, failures INTEGER NOT NULL, window_start REAL NOT NULL);
         ''')
         management.initialize(db)
+        import manual_defaults
+        manual_defaults.seed(db, CATALOG)
 
 def now():
     return datetime.now(timezone.utc).isoformat()
