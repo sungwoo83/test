@@ -2,12 +2,13 @@
 const $ = id => document.getElementById(id);
 let catalog, current, mode = 'login', saving = false;
 async function api(path, data) {
+  const requestCsrf=current?.csrf;
   const options = data ? {method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'PerformanceManager'},body:JSON.stringify(data)} : {};
   const response = await fetch(path, options);
   const body = await response.json();
   if (!response.ok) {
-    if (response.status === 401 && path !== '/api/login') {
-      current = null; $('profile-dialog').close(); $('action-dialog').close(); $('evidence-dialog').close(); $('home').hidden = true; $('auth').hidden = false;
+    if (response.status === 401 && path !== '/api/login' && current?.csrf===requestCsrf) {
+      current = null; clearSessionViews(); $('profile-dialog').close(); $('action-dialog').close(); $('evidence-dialog').close(); $('home').hidden = true; $('auth').hidden = false;
     }
     throw new Error(body.error || '요청에 실패했습니다.');
   }
@@ -55,8 +56,11 @@ function setMode(value) {
   $('password').minLength = signup ? 10 : 1; $('password').autocomplete = signup ? 'new-password' : 'current-password';
   $('password-confirm').required = signup; $('register-department').required = signup; $('auth-error').textContent = '';
 }
-async function refresh() {
-  current = await api('/api/me'); render(); displayPage(); await setupManagement();
+async function refresh(landing=false) {
+  const firstLoad=!current,response=await api('/api/me');if(firstLoad)clearSessionViews();current=response;
+  if(landing){$('review-department').value='';location.hash=isManager()?'#review':'#home';}
+  else if(firstLoad&&isManager()&&(!location.hash||location.hash==='#home'))location.hash='#review';
+  render(); displayPage(); await setupManagement();
 }
 function render() {
   $('auth').hidden = true; $('home').hidden = false;
@@ -85,16 +89,18 @@ function displayPage(navigate=false){
   if(!current)return;
   const routes={
     '#monthly-panel':{view:'monthly-view',nav:'monthly-nav',label:'월별 실적 관리'},
+    '#review':{view:'review-view',nav:'review-nav',label:'월별 실적 확인'},
     '#history':{view:'history-view',nav:'history-nav',label:'근무지·담당지표 변경 이력'},
     '#super-panel':{view:'admin-view',nav:'super-nav',label:'수퍼관리자'}
   };
   const homeRoute={view:'work-view',nav:'work-nav',label:'나의 업무 홈'};
   let route=routes[location.hash]||homeRoute;
   if(route.view==='admin-view'&&current.user.role!=='superadmin')route=homeRoute;
-  for(const id of ['work-view','monthly-view','admin-view','history-view'])$(id).hidden=id!==route.view;
+  if(route.view==='review-view'&&!isManager())route=homeRoute;
+  for(const id of ['work-view','monthly-view','review-view','admin-view','history-view'])$(id).hidden=id!==route.view;
   document.querySelector('.breadcrumb').textContent='/ '+route.label;
   document.title=route.label+' | 내부평가 성과관리';
-  for(const id of ['work-nav','monthly-nav','super-nav','history-nav']){
+  for(const id of ['work-nav','monthly-nav','review-nav','super-nav','history-nav']){
     $(id).classList.toggle('nav-active',id===route.nav);
     if(id===route.nav)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');
   }
@@ -121,7 +127,7 @@ $('auth-form').addEventListener('submit', async event => {
   saving=true; $('auth-submit').disabled=true;
   try {
     await api('/api/'+mode,{employee_id:$('employee').value.trim(),password:$('password').value,department_id:$('register-department').value,indicators:selected('register')});
-    $('password').value=''; $('password-confirm').value=''; await refresh();
+    $('password').value=''; $('password-confirm').value=''; await refresh(true);
   } catch(e) { $('auth-error').textContent=e.message; }
   finally { saving=false; $('auth-submit').disabled=false; }
 });
@@ -135,7 +141,7 @@ $('profile-form').addEventListener('submit',async event=>{
   catch(e) { $('profile-error').textContent=e.message; }
   finally { saving=false; $('save-profile').disabled=false; }
 });
-$('logout').onclick=async()=>{ try { await api('/api/logout',{csrf:current.csrf}); current=null; $('home').hidden=true; $('auth').hidden=false; setMode('login'); } catch(e) { toast(e.message); } };
+$('logout').onclick=async()=>{ try { await api('/api/logout',{csrf:current.csrf}); current=null;clearSessionViews(); $('home').hidden=true; $('auth').hidden=false; setMode('login'); } catch(e) { toast(e.message); } };
 async function start(){
   $('auth-submit').disabled=true;
   try { catalog=await api('/api/catalog'); $('demo-notice').hidden=!catalog.demo; $('home-demo-notice').hidden=!catalog.demo; for(const prefix of ['register','change']) { populateSelect(prefix+'-department'); choices(prefix); }
@@ -154,8 +160,8 @@ async function setupManagement(){
   const u=current.user;
   $('header-role').textContent=roleLabels[u.role] || '직원';
   $('super-panel').hidden=$('super-nav').hidden=u.role!=='superadmin';
-  $('audit-panel').hidden=!isManager();
-  $('scope-description').textContent=u.role==='superadmin'?'전체 부서 조회·실적 조정·월 마감 및 해제':u.role==='admin'?`관리 범위: ${departmentLabel(u.admin_department_id)} · 실적 조정과 월 마감`:'본인 근무지의 담당지표 실적을 입력합니다.';
+  $('audit-panel').hidden=!isManager();$('review-nav').hidden=!isManager();
+  $('scope-description').textContent=isManager()?"본인의 실적을 입력합니다. 직원 실적은 ‘월별 실적 확인’에서 관리하세요.":'본인 근무지의 담당지표 실적을 입력합니다.';
   const select=$('monthly-department'),old=select.value;
   select.replaceChildren();
   const scope=u.role==='superadmin'?evalDepartments():evalDepartments().filter(d=>d.id===(u.role==='admin'?u.admin_department_id:u.department_id));
@@ -170,7 +176,7 @@ async function setupManagement(){
   }
   await loadMonthly();
   if(u.role==='superadmin')await loadSuper();
-  if(isManager())await loadAudit();
+  if(isManager()){await setupReview();await loadAudit();}
 }
 function monthContext(){return {department_id:$('monthly-department').value,year:Number($('monthly-year').value),month:Number($('monthly-month').value)};}
 async function loadMonthly(){
@@ -188,7 +194,7 @@ async function loadMonthly(){
     const closed=monthly.period.status==='closed';
     $('period-status').textContent=closed?'마감':'입력 가능';$('period-status').className='tag '+(closed?'closed-tag':'open-tag');
     $('close-month').hidden=!isManager()||closed;
-    $('reopen-month').hidden=current.user.role!=='superadmin'||!closed;
+    $('reopen-month').hidden=!isManager()||!closed;
     for(const item of monthly.items){
       const k=item.indicator,r=item.record,config=r?JSON.parse(r.snapshot):item.settings,row=node('tr'),name=node('td','',k.name);
       name.append(node('small','',k.type+(config.unit?' · '+config.unit:'')+(r?' · 작성 당시: '+JSON.parse(r.snapshot).name:'')));
@@ -238,8 +244,8 @@ function previewAchievement(config,value){
   const percent=(config.direction==='lower'?target/actual:actual/target)*100;
   return `목표 대비 ${percent.toFixed(2)}% · ${config.direction==='lower'?'목표 ÷ 실적':'실적 ÷ 목표'} × 100 (저장 전 예상값)`;
 }
-function openActual(item,adjust){
-  const context={...monthly.context,indicator_id:item.indicator.id,revision:item.record?.revision||0};
+function openActual(item,adjust,scope=monthly.context){
+  const context={...scope,department_id:item.department_id||scope.department_id,employee_id:item.employee_id||item.record?.employee_id||current.user.employee_id,indicator_id:item.indicator.id,revision:item.record?.revision||0};
   const config=item.record?JSON.parse(item.record.snapshot):item.settings;
   action(adjust?'실적 조정':'실적 입력',item.indicator.name+(adjust?' · 원래 입력값을 보존합니다. 빈 값은 조정 해제입니다.':''),adjust?'/api/monthly/adjust':'/api/monthly/actual',()=>{
     $('action-fields').append(node('p','readonly',`목표: ${config.target ?? '미설정'} ${config.unit||''} · 가중치: ${config.weight ?? '미설정'}점`));
@@ -259,9 +265,13 @@ function openActual(item,adjust){
       $('action-fields').append(node('p','hint','저장 후 목록의 증빙 버튼에서 해당 지표의 자료를 업로드할 수 있습니다.'));
     }
   },()=>({...context,value:$('actual-value')?.value||'',...(!adjust?{status:$('actual-status').value,narrative:$('actual-narrative').value,future_plan:$('actual-plan').value}:{})}));
+  if(scope._source==='review'&&!adjust){
+    $('action-reason').hidden=false;$('action-reason').required=true;$('action-reason').value='';document.querySelector('label[for="action-reason"]').hidden=false;
+    $('action-description').textContent=`${item.employee_name||item.employee_id} · ${item.indicator.name}`+(item.record?.adjusted!=null?' · 수정 저장 시 기존 조정값이 해제되고 새 실적이 반영됩니다.':'');
+  }
 }
-function openSettings(item){
-  const config=item.settings,context={...monthly.context,indicator_id:item.indicator.id,revision:config.revision};
+function openSettings(item,scope=monthly.context){
+  const config=item.settings,context={...scope,department_id:item.department_id||scope.department_id,indicator_id:item.indicator.id,revision:config.revision};
   action('지표 목표·가중치 설정',`${departmentLabel(context.department_id)} · ${context.year}년 · ${item.indicator.name}. 같은 연도의 미마감 실적에 반영하며 마감월은 보존합니다.`,'/api/monthly/settings',()=>{
     field('setting-mode','실적 입력 방식',config.entry_mode,{options:[['numeric','수치 입력'],['text','서술형 입력']]});
     field('setting-target','목표치',config.target,{numeric:true,maxLength:30});field('setting-weight','가중치 (배점)',config.weight,{numeric:true,maxLength:30});
@@ -276,9 +286,10 @@ function changePeriod(status){
   action(status==='closed'?'월 마감':'마감 해제',`${departmentLabel(context.department_id)} · ${context.year}년 ${context.month}월. 마감 후 실적 입력·조정이 차단됩니다.`,'/api/monthly/period',()=>{},()=>context);
 }
 async function loadSuper(){
+  const sessionCsrf=current?.csrf;
   $('super-error').textContent='';
   try{
-    const [master,users]=await Promise.all([api('/api/admin/indicators'),api('/api/admin/users')]);masterItems=master.indicators;
+    const [master,users]=await Promise.all([api('/api/admin/indicators'),api('/api/admin/users')]);if(current?.csrf!==sessionCsrf||current?.user.role!=='superadmin')return;masterItems=master.indicators;
     const select=$('master-indicator'),old=select.value;select.replaceChildren();
     for(const k of masterItems)select.append(new Option(`${k.applies_to} · ${k.name} (${k.id})`,k.id));
     if(masterItems.some(k=>k.id===old))select.value=old;
@@ -302,8 +313,9 @@ function openRole(u){
   },()=>({employee_id:u.employee_id,role:$('role-value').value,admin_department_id:$('role-department').value}));
 }
 async function loadAudit(){
+  const sessionCsrf=current?.csrf;
   try{
-    const {events}=await api('/api/admin/audit');$('audit-rows').replaceChildren();
+    const {events}=await api('/api/admin/audit');if(current?.csrf!==sessionCsrf)return;$('audit-rows').replaceChildren();
     if(!events.length)$('audit-rows').append(node('p','empty','기록된 관리 변경이 없습니다.'));
     for(const e of events){
       const details=node('details','audit-entry');details.append(node('summary','',`${e.action} · 사번 ${e.actor} · ${new Date(e.created_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})}`));
@@ -324,7 +336,7 @@ $('action-form').addEventListener('submit',async event=>{
     const payload=actionRequest.payload(),selfRoleChange=actionRequest.path==='/api/admin/role'&&payload.employee_id===current.user.employee_id;
     await api(actionRequest.path,{...payload,reason:$('action-reason').value,csrf:current.csrf});
     $('action-dialog').close();
-    if(selfRoleChange){current=null;$('home').hidden=true;$('auth').hidden=false;setMode('login');toast('권한을 저장했습니다. 다시 로그인해 주세요.');return;}
+    if(selfRoleChange){current=null;clearSessionViews();$('home').hidden=true;$('auth').hidden=false;setMode('login');toast('권한을 저장했습니다. 다시 로그인해 주세요.');return;}
     catalog=await api('/api/catalog');await refresh();toast('변경사항을 저장했습니다.');
   }catch(e){$('action-error').textContent=e.message;}
   finally{saving=false;$('action-save').disabled=false;}
@@ -332,11 +344,12 @@ $('action-form').addEventListener('submit',async event=>{
 
 
 let evidenceRecord=null,evidenceBusy=false;
-function openEvidence(item){
-  evidenceRecord={id:item.record.id,name:item.indicator.name,closed:monthly.period.status==='closed',attachments:item.record.attachments};
+function openEvidence(item,scope=monthly.context){
+  evidenceRecord={id:item.record.id,name:item.indicator.name,closed:(item.period||monthly.period).status==='closed',attachments:item.record.attachments,source:scope._source||'monthly'};
   renderEvidence();$('evidence-dialog').showModal();
 }
 function renderEvidence(){
+  if(!evidenceRecord){$('evidence-list').replaceChildren();return;}
   const r=evidenceRecord;$('evidence-title').textContent=r.name;$('evidence-error').textContent='';$('evidence-files').value='';
   $('evidence-form').hidden=r.closed;$('evidence-lock').hidden=!r.closed;$('evidence-list').replaceChildren();
   if(!r.attachments.length)$('evidence-list').append(node('p','empty','등록된 증빙자료가 없습니다.'));
@@ -357,10 +370,12 @@ function renderEvidence(){
   }
 }
 async function reloadEvidence(){
-  await loadMonthly();
-  const item=monthly?.items.find(i=>i.record?.id===evidenceRecord.id);
+  if(!evidenceRecord)throw new Error('다시 로그인해 주세요.');
+  if(evidenceRecord.source==='review')await loadReview();else await loadMonthly();
+  const source=evidenceRecord.source==='review'?reviewData:monthly;
+  const item=source?.items.find(i=>i.record?.id===evidenceRecord.id);
   if(!item)throw new Error('실적을 다시 불러올 수 없습니다. 창을 닫고 조회해 주세요.');
-  evidenceRecord.attachments=item.record.attachments;evidenceRecord.closed=monthly.period.status==='closed';renderEvidence();
+  evidenceRecord.attachments=item.record.attachments;evidenceRecord.closed=(item.period||monthly.period).status==='closed';renderEvidence();
 }
 $('close-evidence').onclick=()=>{if(!evidenceBusy)$('evidence-dialog').close();};
 $('evidence-dialog').addEventListener('cancel',event=>{if(evidenceBusy)event.preventDefault();});
@@ -383,4 +398,86 @@ $('evidence-form').addEventListener('submit',async event=>{
     evidenceBusy=false;renderEvidence();$('upload-evidence').disabled=false;$('evidence-error').textContent=error;
   }
 });
+
+
+let reviewData=null,reviewSequence=0;
+function clearSessionViews(){
+  monthly=null;monthlySequence++;reviewData=null;reviewSequence++;masterItems=[];actionRequest=null;evidenceRecord=null;
+  for(const id of ['review-place-rows','review-employee-rows','review-detail-rows','monthly-rows','user-rows','audit-rows','history','my-indicators','action-fields','evidence-list','master-indicator'])$(id).replaceChildren();
+  $('review-nav').hidden=$('super-nav').hidden=true;$('download-review').disabled=true;
+  for(const id of ['review-place-count','review-entered-count','review-assigned-count','review-missing-count','review-draft-count'])$(id).textContent='0';
+}
+
+async function setupReview(){
+  const u=current.user,select=$('review-department'),previous=select.value;
+  select.replaceChildren();
+  if(u.role==='superadmin')select.append(new Option('전체 근무지',''));
+  const workplaces=u.role==='superadmin'?evalDepartments():evalDepartments().filter(d=>d.id===u.admin_department_id);
+  for(const d of workplaces)select.append(new Option(d.name,d.id));
+  if([...select.options].some(o=>o.value===previous))select.value=previous;
+  select.disabled=u.role!=='superadmin';
+  $('review-scope').textContent=u.role==='superadmin'?'전체 근무지의 직원 입력 현황과 실적을 확인합니다.':`${departmentLabel(u.admin_department_id)} 직원들의 실적을 확인하고 취합·마감합니다.`;
+  if(!$('review-month').options.length){
+    for(let m=1;m<=12;m++)$('review-month').append(new Option(m+'월',m));
+    $('review-month').value=$('monthly-month').value;$('review-year').value=$('monthly-year').value;
+  }
+  await loadReview();
+}
+function reviewContext(){return {department_id:$('review-department').value,year:Number($('review-year').value),month:Number($('review-month').value),_source:'review'};}
+function emptyTable(id,columns,text){const row=node('tr'),cell=node('td','empty-row',text);cell.colSpan=columns;row.append(cell);$(id).append(row);}
+async function loadReview(){
+  if(!isManager())return;
+  const sequence=++reviewSequence,context=reviewContext();reviewData=null;$('review-error').textContent='';$('download-review').disabled=true;
+  for(const id of ['review-place-rows','review-employee-rows','review-detail-rows'])$(id).replaceChildren();
+  try{
+    const response=await api('/api/review?'+new URLSearchParams(context));if(sequence!==reviewSequence)return;
+    reviewData={...response,context};
+    $('review-place-count').textContent=response.workplaces.length;
+    for(const [id,key] of [['review-entered-count','entered_count'],['review-assigned-count','assigned_count'],['review-missing-count','missing_count'],['review-draft-count','draft_count']])$(id).textContent=response.workplaces.reduce((n,p)=>n+p[key],0);
+    for(const place of response.workplaces){
+      const row=node('tr'),actions=node('td'),closed=place.period.status==='closed';
+      row.append(node('td','',place.department_name),node('td','',place.employee_count),node('td','',place.entered_count+' / '+place.assigned_count),node('td','',place.missing_count+' / '+place.draft_count),node('td','',place.average_achievement!=null?place.average_achievement+'%':'—'),node('td','',closed?'마감':'입력 가능'));
+      const detail=node('button','secondary','상세');detail.type='button';detail.onclick=()=>{$('review-department').value=place.department_id;loadReview();};actions.append(detail);
+      const close=node('button',closed?'secondary':'primary',closed?'마감 해제':'월 마감');close.type='button';close.onclick=()=>changeReviewPeriod(place,context);actions.append(close);row.append(actions);$('review-place-rows').append(row);
+    }
+    for(const e of response.employees){
+      const row=node('tr'),employee=node('td','',e.employee_id+(e.display_name?' · '+e.display_name:''));if(!e.is_current_member)employee.append(node('small','','이전 소속'));
+      row.append(node('td','',e.department_name),employee,node('td','',e.entry_state),node('td','',e.entered_count+' / '+e.assigned_count),node('td','',e.missing_count+' / '+e.draft_count),node('td','',e.completion_percent!=null?e.completion_percent+'%':'—'));$('review-employee-rows').append(row);
+    }
+    if(!response.employees.length)emptyTable('review-employee-rows',6,'해당 근무지에 등록된 직원이 없습니다.');
+    for(const item of response.items){
+      const r=item.record,config=r?JSON.parse(r.snapshot):item.settings,closed=item.period.status==='closed',scope={...context,department_id:item.department_id};
+      const row=node('tr'),person=node('td','',item.employee_name||item.employee_id);person.append(node('small','',item.employee_id));
+      if(r?.owner_inferred)person.append(node('small','','기존 담당자 추정'));
+      const metric=node('td','',item.indicator.name);metric.append(node('small','',`목표 ${config.target ?? '미설정'} ${config.unit||''} · 가중치 ${config.weight ?? '미설정'}점`));
+      const value=r?(config.entry_mode==='text'?r.narrative||'내용 미입력':r.actual!==''?r.actual:'수치 미입력'):'—',actual=node('td','narrative-cell',value);
+      if(r?.adjusted!=null)actual.append(node('small','',`조정값: ${r.adjusted}`));
+      const actions=node('td');
+      const edit=node('button','secondary',r?'수정':'대리 입력');edit.type='button';edit.disabled=closed;edit.onclick=()=>openActual(item,false,scope);actions.append(edit);
+      if(r){const files=node('button','secondary',`증빙 ${r.attachments.length}개`);files.type='button';files.onclick=()=>openEvidence(item,scope);actions.append(files);}
+      const goal=node('button','secondary','목표·가중치');goal.type='button';goal.disabled=closed;goal.onclick=()=>openSettings(item,scope);actions.append(goal);
+      if(r&&config.entry_mode!=='text'){const adjust=node('button','secondary','수치 조정');adjust.type='button';adjust.disabled=closed;adjust.onclick=()=>openActual(item,true,scope);actions.append(adjust);}
+      row.append(node('td','',item.department_name),person,metric,node('td','',item.entry_state),actual,node('td','',r?r.achievement.label:'—'),node('td','',r?.status||'미착수'),node('td','plan-cell',r?.future_plan||'—'),actions);$('review-detail-rows').append(row);
+    }
+    if(!response.items.length)emptyTable('review-detail-rows',9,'등록된 담당지표가 없습니다.');
+    $('download-review').disabled=false;
+  }catch(e){if(sequence===reviewSequence)$('review-error').textContent=e.message;}
+}
+function changeReviewPeriod(place,context){
+  const closed=place.period.status==='closed',payload={department_id:place.department_id,year:context.year,month:context.month,revision:place.period.revision,status:closed?'open':'closed'};
+  action(closed?'월 마감 해제':'월별 취합 마감',`${place.department_name} · ${context.year}년 ${context.month}월. ${closed?'직원들의 수정·증빙 등록을 다시 허용합니다.':'소속 직원들의 실적 수정·증빙 등록을 잠급니다.'}`,'/api/monthly/period',()=>{},()=>payload);
+}
+$('load-review').onclick=loadReview;
+for(const id of ['review-department','review-year','review-month'])$(id).onchange=loadReview;
+$('download-review').onclick=async()=>{
+  if(!reviewData)return;
+  const context={...reviewData.context};$('download-review').disabled=true;
+  try{
+    const response=await fetch('/api/review.xlsx?'+new URLSearchParams(context));
+    if(!response.ok){const body=await response.json();throw new Error(body.error||'다운로드에 실패했습니다.');}
+    const url=URL.createObjectURL(await response.blob()),link=node('a');link.href=url;link.download=`월별실적_${context.year}_${String(context.month).padStart(2,'0')}.xlsx`;
+    document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(e){$('review-error').textContent=e.message;}
+  finally{$('download-review').disabled=!reviewData;}
+};
 start();
