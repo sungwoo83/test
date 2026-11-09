@@ -150,6 +150,21 @@ class Handler(BaseHTTPRequestHandler):
             with connect() as db:
                 return self.reply(200, {'demo': DEMO, 'departments': CATALOG['departments'],
                     'indicators_by_department': {d['id']: available(d['id'], db) for d in CATALOG['departments']}})
+        if path == '/api/admin/indicators/template.xlsx':
+            try:
+                import indicator_bulk
+                with connect() as db:
+                    session=self.session(db)
+                    if not session:return self.reply(401, {'error':'로그인이 필요합니다.'})
+                    user=db.execute('SELECT * FROM users WHERE employee_id=?',(session['employee_id'],)).fetchone()
+                    mparams={k:v[0] for k,v in parse_qs(urlsplit(self.path).query).items()}
+                    year=indicator_bulk.year_arg(mparams)
+                    body=indicator_bulk.template(db,user,year,management.effective_catalog(db,CATALOG),available)
+                self.send_response(200)
+                self.headers_common('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',len(body))
+                self.send_header('Content-Disposition',f'attachment; filename="indicator-template-{year}.xlsx"')
+                self.end_headers();self.wfile.write(body);return
+            except management.APIError as exc:return self.reply(exc.status, {'error':str(exc)})
         if path == '/api/review.xlsx':
             try:
                 import review
@@ -197,6 +212,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.headers.get('X-Requested-With') != 'PerformanceManager' or self.headers.get('Sec-Fetch-Site') not in (None, 'same-origin'):
             return self.reply(403, {'error': '허용되지 않은 요청입니다.'})
+        if urlsplit(self.path).path=='/api/admin/indicators/import-preview':
+            return self.preview_indicator_workbook()
         if urlsplit(self.path).path=='/api/evidence/upload':
             return self.upload_evidence()
         try:
@@ -323,6 +340,31 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(503, {'error':'파일 저장에 실패했습니다. 다시 시도해 주세요.'})
         finally:
             if created_path is not None:created_path.unlink(missing_ok=True)
+
+
+    def preview_indicator_workbook(self):
+        try:
+            import indicator_bulk
+            length=int(self.headers.get('Content-Length','0'))
+            if not 0<length<=indicator_bulk.MAX_FILE:return self.reply(413, {'error':'양식은 5MB 이하의 XLSX 파일로 업로드해 주세요.'})
+            if self.headers.get('Content-Type','').split(';')[0]!='application/octet-stream':return self.reply(415, {'error':'XLSX 파일 업로드 형식을 확인해 주세요.'})
+            with connect() as db:
+                db.execute('BEGIN IMMEDIATE')
+                session=self.session(db)
+                if not session:return self.reply(401, {'error':'로그인이 필요합니다.'})
+                user=db.execute('SELECT * FROM users WHERE employee_id=?',(session['employee_id'],)).fetchone()
+                management.require_super(user)
+                csrf=self.headers.get('X-CSRF-Token','')
+                if not hmac.compare_digest(csrf,session['csrf']):return self.reply(403, {'error':'세션을 새로고침하고 다시 시도해 주세요.'})
+                params={k:v[0] for k,v in parse_qs(urlsplit(self.path).query).items()}
+                year=indicator_bulk.year_arg(params)
+                body=self.rfile.read(length)
+                if len(body)!=length:raise management.APIError(400,'파일 전송이 완료되지 않았습니다.')
+                result=indicator_bulk.preview(db,user,body,year,management.effective_catalog(db,CATALOG),available,csrf)
+                db.commit();return self.reply(200,result)
+        except management.APIError as exc:self.reply(exc.status, {'error':str(exc)})
+        except (ValueError,UnicodeError):self.reply(400, {'error':'평가연도와 XLSX 파일을 확인해 주세요.'})
+        except (sqlite3.Error,OSError):self.reply(503, {'error':'파일 검증에 실패했습니다. 다시 시도해 주세요.'})
 
 def main():
     global DB, SECURE
