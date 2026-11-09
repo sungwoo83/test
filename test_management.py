@@ -21,7 +21,7 @@ class ManagementFlow(unittest.TestCase):
             db.execute("UPDATE users SET role='admin',admin_department_id=? WHERE employee_id='manager'",(self.a['id'],))
         self.manager=self.cookie
         self.cookie=''
-        self.request('/api/register',{'employee_id':'super','password':self.password,'department_id':'SYS-PERFORMANCE','indicators':[],'role':'superadmin'})
+        self.request('/api/register',{'employee_id':'super','display_name':'테스트 수퍼관리자','password':self.password,'department_id':'SYS-PERFORMANCE','indicators':[],'role':'superadmin'})
         self.super_cookie=self.cookie
         self.assertEqual(self.request('/api/me')[1]['user']['role'],'employee')
         with app.connect() as db:db.execute("UPDATE users SET role='superadmin' WHERE employee_id='super'")
@@ -118,7 +118,7 @@ class ManagementFlow(unittest.TestCase):
             self.skipTest('예시 데이터에는 AI정보융합실이 없습니다.')
         self.cookie=''
         ids=[k['id'] for k in app.available(department['id'])[:1]]
-        self.assertEqual(self.request('/api/register',{'employee_id':'ai-worker','password':self.password,'department_id':department['id'],'indicators':ids,'role':'superadmin'})[0],200)
+        self.assertEqual(self.request('/api/register',{'employee_id':'ai-worker','display_name':'테스트 담당자','password':self.password,'department_id':department['id'],'indicators':ids,'role':'superadmin'})[0],200)
         self.assertEqual(self.request('/api/me')[1]['user']['role'],'employee')
         return department,ids
 
@@ -155,7 +155,7 @@ class ManagementFlow(unittest.TestCase):
         self.cookie=self.super_cookie
         self.assertEqual(self.request('/api/me')[0],401)
         self.cookie=''
-        self.assertEqual(self.request('/api/login',{'employee_id':'super','password':self.password})[0],401)
+        self.assertEqual(self.request('/api/login',{'employee_id':'super','display_name':'테스트 수퍼관리자','password':self.password})[0],401)
         self.assertEqual(self.request('/api/login',{'employee_id':'super','password':password})[0],200)
         with app.connect() as db:
             stored=db.execute("SELECT password_hash FROM users WHERE employee_id='super'").fetchone()[0]
