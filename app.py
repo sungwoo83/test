@@ -181,7 +181,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header('Content-Disposition',f'attachment; filename="{filename}"')
                 self.end_headers();self.wfile.write(body);return
             except management.APIError as exc:return self.reply(exc.status, {'error':str(exc)})
-        if path in ('/api/monthly','/api/review') or path.startswith('/api/admin/'):
+        if path in ('/api/monthly','/api/review','/api/dashboard') or path.startswith('/api/admin/'):
             with connect() as db:
                 session = self.session(db)
                 if not session: return self.reply(401, {'error':'로그인이 필요합니다.'})
@@ -199,7 +199,7 @@ class Handler(BaseHTTPRequestHandler):
                 user = db.execute('SELECT * FROM users WHERE employee_id=?', (session['employee_id'],)).fetchone()
                 history = db.execute('SELECT before_json,after_json,changed_at FROM changes WHERE employee_id=? ORDER BY id DESC LIMIT 20', (session['employee_id'],)).fetchall()
                 return self.reply(200, {'user': profile(user), 'csrf': session['csrf'], 'history': [dict(r) for r in history]})
-        files = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'text/javascript; charset=utf-8'), '/style.css': ('style.css', 'text/css; charset=utf-8')}
+        files = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'text/javascript; charset=utf-8'), '/dashboard.js': ('dashboard.js','text/javascript; charset=utf-8'), '/knps-logo.svg': ('knps-logo.svg','image/svg+xml'), '/style.css': ('style.css', 'text/css; charset=utf-8')}
         if path not in files:
             return self.reply(404, {'error': '페이지를 찾을 수 없습니다.'})
         name, mime = files[path]
