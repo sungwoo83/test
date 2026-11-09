@@ -225,10 +225,14 @@ class Handler(BaseHTTPRequestHandler):
                     if self.path == '/api/register':
                         if len(password) < 10:
                             raise ValueError('비밀번호는 10자 이상 입력해 주세요.')
+                        display_name=data.get('display_name')
+                        if not isinstance(display_name,str) or not 1<=len(display_name.strip())<=100 or any(ord(c)<32 or 0xD800<=ord(c)<=0xDFFF for c in display_name):
+                            raise ValueError('이름을 1~100자로 입력해 주세요.')
+                        display_name=display_name.strip()
                         dept, indicators = selection(data)
                         if db.execute('SELECT 1 FROM users WHERE employee_id=?', (employee,)).fetchone():
                             return self.reply(409, {'error': '이미 가입된 사번입니다. 로그인해 주세요.'})
-                        db.execute('INSERT INTO users(employee_id,password_hash,department_id,indicators,revision,created_at) VALUES(?,?,?,?,1,?)', (employee, password_hash(password), dept, json.dumps(indicators), now()))
+                        db.execute('INSERT INTO users(employee_id,password_hash,department_id,indicators,revision,created_at,display_name) VALUES(?,?,?,?,1,?,?)', (employee, password_hash(password), dept, json.dumps(indicators), now(),display_name))
                         db.execute('INSERT INTO changes(employee_id,after_json,changed_at) VALUES(?,?,?)', (employee, json.dumps({'department_id': dept, 'indicators': indicators}), now()))
                     else:
                         row = db.execute('SELECT * FROM users WHERE employee_id=?', (employee,)).fetchone()
