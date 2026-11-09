@@ -37,6 +37,8 @@ def initialize(db):
     import progress, evidence
     progress.initialize(db)
     evidence.initialize(db)
+    import submissions
+    submissions.migrate(db)
 
 def audit(db, actor, action, department, target, before, after, reason):
     db.execute('INSERT INTO audit_log(action,actor,department_id,target,before_json,after_json,reason,created_at) VALUES(?,?,?,?,?,?,?,?)',
@@ -105,6 +107,9 @@ def period(db, department, year, month):
     return dict(row) if row else {'department_id':department,'year':year,'month':month,'status':'open','revision':0}
 
 def get(db,user,path,params,catalog,available):
+    if path=='/api/review':
+        import review
+        return review.report(db,user,params,catalog,available)
     if path=='/api/admin/users':
         require_super(user)
         return {'users':[dict(r) for r in db.execute('SELECT employee_id,display_name,department_id,role,admin_department_id FROM users ORDER BY employee_id')]}
@@ -124,7 +129,9 @@ def get(db,user,path,params,catalog,available):
         items=available(department,db)
         if user['role']=='employee':
             assigned=set(json.loads(user['indicators']));items=[k for k in items if k['id'] in assigned]
-        records={r['indicator_id']:dict(r) for r in db.execute('SELECT * FROM monthly_actuals WHERE department_id=? AND year=? AND month=?',(department,y,m))}
+        owner=params.get('employee_id',user['employee_id'])
+        if user['role']=='employee' and owner!=user['employee_id']:raise APIError(403,'본인의 실적만 조회할 수 있습니다.')
+        records={r['indicator_id']:dict(r) for r in db.execute('SELECT * FROM monthly_actuals WHERE department_id=? AND year=? AND month=? AND employee_id=?',(department,y,m,owner))}
         import progress
         return {'period':period(db,department,y,m),'items':progress.enrich_items(db,department,y,items,records)}
     raise APIError(404,'요청을 찾을 수 없습니다.')
@@ -174,17 +181,26 @@ def post(db,user,path,data,catalog,available):
         if path=='/api/monthly/period':
             require_manager(user,department);why=reason(data);status=data.get('status')
             if status not in ('open','closed'): raise APIError(400,'마감 상태를 확인해 주세요.')
-            if status=='open': require_super(user)
             if data.get('revision')!=p['revision']: raise APIError(409,'마감 상태가 변경되었습니다. 다시 불러와 주세요.')
             if status==p['status']: raise APIError(409,'이미 동일한 마감 상태입니다.')
             after={**p,'status':status,'revision':p['revision']+1,'updated_by':actor,'updated_at':stamp()}
             db.execute('INSERT INTO monthly_periods VALUES(?,?,?,?,?,?,?) ON CONFLICT(department_id,year,month) DO UPDATE SET status=excluded.status,revision=excluded.revision,updated_by=excluded.updated_by,updated_at=excluded.updated_at',(department,y,m,status,after['revision'],actor,after['updated_at']))
             audit(db,actor,'월 마감' if status=='closed' else '마감 해제',department,f'{y}-{m:02d}',p,after,why)
             return {'ok':True}
-        if p['status']=='closed': raise APIError(409,'마감된 월입니다. 수퍼관리자의 마감 해제 후 수정할 수 있습니다.')
+        if p['status']=='closed': raise APIError(409,'마감된 월입니다. 관리자의 마감 해제 후 수정할 수 있습니다.')
         indicator=next((k for k in available(department,db) if k['id']==data.get('indicator_id')),None)
         if not indicator: raise APIError(400,'해당 부서의 지표를 선택해 주세요.')
-        row=db.execute('SELECT * FROM monthly_actuals WHERE department_id=? AND indicator_id=? AND year=? AND month=?',(department,indicator['id'],y,m)).fetchone()
+        owner=data.get('employee_id',user['employee_id'])
+        if not isinstance(owner,str):raise APIError(400,'직원을 선택해 주세요.')
+        if user['role']=='employee' and owner!=user['employee_id']:raise APIError(403,'다른 직원의 실적은 수정할 수 없습니다.')
+        if path=='/api/monthly/adjust' and 'employee_id' not in data:
+            candidates=list(db.execute('SELECT * FROM monthly_actuals WHERE department_id=? AND indicator_id=? AND year=? AND month=?',(department,indicator['id'],y,m)))
+            if len(candidates)>1:raise APIError(400,'조정할 직원을 선택해 주세요.')
+            if candidates:owner=candidates[0]['employee_id']
+        row=db.execute('SELECT * FROM monthly_actuals WHERE department_id=? AND indicator_id=? AND year=? AND month=? AND employee_id=?',(department,indicator['id'],y,m,owner)).fetchone()
+        if user['role']!='employee' and owner!=user['employee_id'] and row is None:
+            target=db.execute('SELECT * FROM users WHERE employee_id=? AND department_id=?',(owner,department)).fetchone()
+            if not target or indicator['id'] not in json.loads(target['indicators']):raise APIError(400,'해당 직원의 담당지표를 선택해 주세요.')
         before=dict(row) if row else None
         if data.get('revision')!=(row['revision'] if row else 0): raise APIError(409,'실적이 변경되었습니다. 다시 불러와 주세요.')
         why=reason(data)
@@ -198,9 +214,9 @@ def post(db,user,path,data,catalog,available):
             action='실적 조정'
         else:
             import progress
-            progress.save_actual(db,user,data,indicator,row,y,m,department)
+            progress.save_actual(db,user,{**data,'employee_id':owner},indicator,row,y,m,department)
             action='실적 입력'
-        after=dict(db.execute('SELECT * FROM monthly_actuals WHERE department_id=? AND indicator_id=? AND year=? AND month=?',(department,indicator['id'],y,m)).fetchone())
+        after=dict(db.execute('SELECT * FROM monthly_actuals WHERE department_id=? AND indicator_id=? AND year=? AND month=? AND employee_id=?',(department,indicator['id'],y,m,owner)).fetchone())
         audit(db,actor,action,department,after['id'],before,after,why)
         return {'ok':True,'record_id':after['id'],'revision':after['revision']}
     raise APIError(404,'요청을 찾을 수 없습니다.')
