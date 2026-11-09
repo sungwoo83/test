@@ -48,9 +48,9 @@ function choices(prefix, values = []) {
 function setMode(value) {
   mode = value; const signup = value === 'register';
   $('login-tab').setAttribute('aria-selected', String(!signup)); $('register-tab').setAttribute('aria-selected',String(signup));
-  $('register-fields').hidden = !signup;
+  $('register-fields').hidden = !signup; $('signup-name').hidden=!signup; $('register-name').required=signup; $('register-name').disabled=!signup;
   $('auth-title').textContent = signup ? '성과관리, 함께 시작해요' : '다시 만나 반갑습니다';
-  $('auth-description').textContent = signup ? '근무지와 담당지표를 등록하면 준비가 끝납니다.' : '사번으로 로그인하고 나의 업무를 확인하세요.';
+  $('auth-description').textContent = signup ? '이름, 근무지와 담당지표를 등록하면 준비가 끝납니다.' : '사번으로 로그인하고 나의 업무를 확인하세요.';
   $('auth-submit').textContent = signup ? '회원가입 후 시작하기 →' : '로그인 →';
   $('password').value = ''; $('password-confirm').value = '';
   $('password').minLength = signup ? 10 : 1; $('password').autocomplete = signup ? 'new-password' : 'current-password';
@@ -122,12 +122,13 @@ for (const prefix of ['register','change']) $(prefix+'-department').addEventList
 $('auth-form').addEventListener('submit', async event => {
   event.preventDefault(); if (saving) return;
   $('auth-error').textContent='';
+  if(mode==='register'&&!$('register-name').value.trim()){$('auth-error').textContent='이름을 입력해 주세요.';return;}
   if (mode === 'register' && $('password').value !== $('password-confirm').value) { $('auth-error').textContent='비밀번호 확인이 일치하지 않습니다.'; return; }
   if (mode === 'register' && $('register-department').value !== 'SYS-PERFORMANCE' && !selected('register').length) { $('auth-error').textContent='담당지표를 하나 이상 선택해 주세요.'; return; }
   saving=true; $('auth-submit').disabled=true;
   try {
-    await api('/api/'+mode,{employee_id:$('employee').value.trim(),password:$('password').value,department_id:$('register-department').value,indicators:selected('register')});
-    $('password').value=''; $('password-confirm').value=''; await refresh(true);
+    await api('/api/'+mode,{employee_id:$('employee').value.trim(),password:$('password').value,...(mode==='register'?{display_name:$('register-name').value.trim()}:{}),department_id:$('register-department').value,indicators:selected('register')});
+    $('password').value=''; $('password-confirm').value=''; $('register-name').value=''; await refresh(true);
   } catch(e) { $('auth-error').textContent=e.message; }
   finally { saving=false; $('auth-submit').disabled=false; }
 });
