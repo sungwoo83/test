@@ -201,3 +201,30 @@ class ManagementFlow(unittest.TestCase):
         self.assertEqual(me['role'],'superadmin')
         with app.connect() as db:
             self.assertEqual(db.execute("SELECT role FROM users WHERE employee_id='super'").fetchone()[0],'superadmin')
+
+    def test_promote_existing_account_preserves_password_and_other_admins(self):
+        from unittest.mock import patch
+        import manage
+        self.cookie=''
+        self.request('/api/register',{'employee_id':'recover','display_name':'복구 담당자','password':self.password,'department_id':'SYS-PERFORMANCE','indicators':[]})
+        original_cookie=self.cookie
+        with app.connect() as db:
+            before=db.execute("SELECT password_hash FROM users WHERE employee_id='recover'").fetchone()[0]
+        argv=['manage.py','promote-superadmin','--employee-id','recover','--department-id','SYS-PERFORMANCE','--db',str(app.DB)]
+        with patch.object(sys,'argv',argv),patch.object(manage.getpass,'getpass') as prompt,patch('builtins.print'):
+            manage.main();prompt.assert_not_called()
+        self.cookie=original_cookie;self.assertEqual(self.request('/api/me')[0],401)
+        self.cookie='';self.assertEqual(self.request('/api/login',{'employee_id':'recover','password':self.password})[0],200)
+        self.assertEqual(self.request('/api/me')[1]['user']['role'],'superadmin')
+        self.assertEqual(self.request('/api/admin/users')[0],200)
+        with app.connect() as db:
+            self.assertEqual(db.execute("SELECT password_hash FROM users WHERE employee_id='recover'").fetchone()[0],before)
+            self.assertEqual(db.execute("SELECT role FROM users WHERE employee_id='super'").fetchone()[0],'superadmin')
+            self.assertEqual(db.execute("SELECT role FROM users WHERE employee_id='manager'").fetchone()[0],'admin')
+
+    def test_promote_requires_valid_existing_account_and_department(self):
+        from unittest.mock import patch
+        import manage
+        for employee in ['missing','worker']:
+            argv=['manage.py','promote-superadmin','--employee-id',employee,'--db',str(app.DB)]
+            with patch.object(sys,'argv',argv),patch('sys.stderr'),self.assertRaises(SystemExit):manage.main()
