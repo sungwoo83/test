@@ -22,7 +22,7 @@ class ReviewFlow(unittest.TestCase):
 
     def add_worker(self,employee='000007',department=None,indicators=None):
         self.cookie=''
-        self.assertEqual(self.request('/api/register',{'employee_id':employee,'password':self.password,'department_id':department or self.a['id'],'indicators':indicators or self.ka})[0],200)
+        self.assertEqual(self.request('/api/register',{'employee_id':employee,'display_name':'테스트 직원 '+employee,'password':self.password,'department_id':department or self.a['id'],'indicators':indicators or self.ka})[0],200)
         return self.cookie
     def save(self,employee='worker',value='5',revision=0,**extra):
         return self.post('/api/monthly/actual',{**self.context,'employee_id':employee,'indicator_id':self.ka[0],'revision':revision,'value':value,'status':'진행중','future_plan':'다음 달 계획','reason':'월별 실적 입력',**extra})
