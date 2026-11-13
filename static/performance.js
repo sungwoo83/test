@@ -1,5 +1,6 @@
 'use strict';
 let perfTab='own',perfData=null,perfSequence=0,perfSubmit=null,perfBusy=false;
+const perfMethods={ratio:'실적 ÷ 목표',lower:'목표 ÷ 실적',rate:'분자 ÷ 분모 × 100, 목표 대비',bands:'기준 이상 구간별 득점',bands_lower:'기준 이하 구간별 득점',points:'확인된 환산점수'};
 const perfStates={draft:'임시저장',submitted:'제출·검토대기',returned:'반려',approved:'확정'};
 function clearPerformance(){perfTab='own';perfData=null;perfSequence++;perfSubmit=null;$('perf-content').replaceChildren();$('perf-summary').replaceChildren();$('perf-dialog').close();$('perf-fields').replaceChildren();$('perf-reason').value='';}
 function setupPerformance(){
@@ -80,7 +81,7 @@ function renderPerfRecords(data){
     }
     if(plan.configured&&plan.mode==='numeric')card.append(perfChart(item));
     const details=node('details'),ref=node('summary','','세부목표 · 계산 기준 · 기간 이력');details.append(ref);
-    details.append(perfTable(['세부항목','목표','배점','계산','기본·상한'],plan.components.map(c=>[c.name,c.target+' '+c.unit,c.weight,c.method,`${Number(c.floor)*100}% ~ ${Number(c.cap)*100}%`])));
+    details.append(perfTable(['세부항목','목표','배점','계산','기본·상한'],plan.components.map(c=>[c.name,c.target+' '+c.unit,c.weight,perfMethods[c.method],`${Number(c.floor)*100}% ~ ${Number(c.cap)*100}%`])));
     details.append(perfTable(['기간','담당자','제출상태','득점','추진 내용','향후계획'],item.history.map(r=>[r.start+' ~ '+r.end,r.employee,perfStates[r.state],r.calculation.score,r.narrative,r.plan])));
     if(item.legacy.length)details.append(perfNote(`이전 월별 기록 ${item.legacy.length}건은 원래 기록으로 보존됩니다. 이전 월별 실적 화면 또는 나의 이전 실적에서 확인하세요.`));
     if(plan.reference){const refView=manualReference({manual_reference:plan.reference});if(refView)details.append(refView);}
@@ -95,7 +96,7 @@ function editPerfEntry(item,owner,record){
     box.append(perfNote(`${item.period.label} · 업무 진행상태와 제출상태는 별도로 관리합니다.`));
     if(record&&JSON.stringify(record.definition.components)!==JSON.stringify(item.definition.components)){rebase=perfInput(box,'관리자가 변경한 최신 계산 기준 적용',false,'checkbox');rebase.onchange=()=>{definition=rebase.checked?item.definition:record.definition;fields.replaceChildren();buildFields(fields);refreshPreview();};}
     const fields=node('div','perf-component-inputs');box.append(fields);
-    function buildFields(parent){inputs={};for(const c of definition.components){const group=node('fieldset');group.append(node('legend','',`${c.name} · 목표 ${c.target}${c.unit} · 배점 ${c.weight}점`));const value=record?.values[c.id];if(c.method==='rate'){inputs[c.id]={numerator:perfInput(group,'분자',value?.numerator||'','number'),denominator:perfInput(group,'분모',value?.denominator||'','number')};}else inputs[c.id]=perfInput(group,c.method==='points'?'평가 기준에 따라 확인한 환산점수':`실적 (${c.unit})`,value??'','number');group.append(node('p','hint',`계산방식 ${c.method} · 기본 ${Number(c.floor)*100}% · 상한 ${Number(c.cap)*100}%${c.bands?' · 구간 '+c.bands.map(b=>b.join(' → ')).join(', '):''}`));parent.append(group);}}
+    function buildFields(parent){inputs={};for(const c of definition.components){const group=node('fieldset');group.append(node('legend','',`${c.name} · 목표 ${c.target}${c.unit} · 배점 ${c.weight}점`));const value=record?.values[c.id];if(c.method==='rate'){inputs[c.id]={numerator:perfInput(group,'분자',value?.numerator||'','number'),denominator:perfInput(group,'분모',value?.denominator||'','number')};}else inputs[c.id]=perfInput(group,c.method==='points'?'평가 기준에 따라 확인한 환산점수':`실적 (${c.unit})`,value??'','number');group.append(node('p','hint',`계산방식 ${perfMethods[c.method]} · 기본 ${Number(c.floor)*100}% · 상한 ${Number(c.cap)*100}%${c.bands?' · 구간 '+c.bands.map(b=>b.join(' → ')).join(', '):''}`));parent.append(group);}}
     const preview=node('p','achievement-preview','세부 실적을 입력하면 예상 득점과 득점률을 계산합니다.');box.append(preview);let previewTimer=null,previewSequence=0;
     const refreshPreview=()=>{clearTimeout(previewTimer);previewTimer=setTimeout(async()=>{if(!current||!$('perf-dialog').open)return;const sequence=++previewSequence,csrf=current.csrf,values={};for(const [id,input]of Object.entries(inputs))values[id]=input.numerator?{numerator:input.numerator.value,denominator:input.denominator.value}:input.value;try{const result=await perfPost('preview',{indicator_id:item.indicator.id,record_id:record?.id,rebase:Boolean(rebase?.checked),values});if(sequence!==previewSequence||current?.csrf!==csrf)return;const calc=result.calculation;preview.textContent=calc.score!=null?`예상 득점 ${prettyNumber(calc.score)} / ${definition.weight}점 · 득점률 ${prettyNumber(calc.percent)}% (저장 전)`:`세부항목 ${calc.missing?.length||0}개 입력 대기`;}catch(e){if(sequence===previewSequence)preview.textContent=e.message;}},250);};fields.oninput=refreshPreview;
     buildFields(fields);status=perfInput(box,'업무 진행상태',record?.status||'미착수','text',progressOptions());narrative=perfInput(box,definition.mode==='text'?'성과보고서 내용':'추진 내용·계산 근거',record?.narrative||'','textarea');future=perfInput(box,'향후계획',record?.plan||'','textarea');box.append(perfNote('저장한 뒤 증빙을 업로드하고 제출하세요. 제출·확정 후에는 반려를 통해 수정합니다.'));
@@ -136,7 +137,7 @@ function editPerfPlan(item){
 function perfCalculation(record){
   perfDialog('실적·계산 근거 · '+record.start+' ~ '+record.end,box=>{
     box.append(perfNote(`${record.employee} · ${perfStates[record.state]} · ${record.status}`));
-    const rows=record.definition.components.map(c=>{const value=record.values[c.id],part=record.calculation.components.find(p=>p.id===c.id);return [c.name,value&&typeof value==='object'?`${value.numerator} / ${value.denominator}`:value??'미입력',c.target+' '+c.unit,c.weight,part?.score??'미산정',c.method];});
+    const rows=record.definition.components.map(c=>{const value=record.values[c.id],part=record.calculation.components.find(p=>p.id===c.id);return [c.name,value&&typeof value==='object'?`${value.numerator} / ${value.denominator}`:value??'미입력',c.target+' '+c.unit,c.weight,part?.score??'미산정',perfMethods[c.method]];});
     if(rows.length)box.append(perfTable(['세부항목','입력 실적','목표','배점','득점','계산방식'],rows));
     box.append(node('h3','','추진 내용'),node('p','metric-plan',record.narrative||'내용 없음'),node('h3','','향후계획'),node('p','metric-plan',record.plan||'계획 없음'),perfNote(`검토 사유: ${record.feedback||'없음'}`));
     for(const file of record.files){const a=node('a','',file.original_name+' ');a.href='/api/performance/files/'+file.id;box.append(a);}
@@ -166,7 +167,7 @@ function editPerfRating(item){
 }
 function renderPerfTasks(data){
   if(!data.tasks.length)$('perf-content').append(perfNote('지정된 평가 요청이 없습니다.'));
-  for(const task of data.tasks){const r=task.rating,card=node('article','perf-card');card.append(node('h2','',`${r.year}년 · ${r.indicator}`));for(const record of task.records)card.append(node('p','',record.narrative||'내용 없음'));
+  for(const task of data.tasks){const r=task.rating,card=node('article','perf-card');card.append(node('h2','',`${r.year}년 · ${task.records[0]?.definition.name||r.indicator}`));for(const record of task.records)card.append(node('p','',record.narrative||'내용 없음'));
     card.append(perfButton('등급 입력',()=>{let grade;perfDialog('지정된 지표 등급 입력',box=>{grade=perfInput(box,'평가등급',r.grade||'A','text',['S','A','B','C','D'].map(x=>[x,x]));},()=>perfPost('grade',{department_id:r.department,year:r.year,indicator_id:r.indicator,revision:r.revision,grade:grade.value}));}));$('perf-content').append(card);}
 }
 function renderPerfAccounts(data){

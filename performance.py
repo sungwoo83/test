@@ -245,6 +245,7 @@ def aggregate(plan,records):
         by_person={k:v for k,v in by_person.items() if k==plan['representative']}
         if not by_person:return {'ready':False,'reason':'대표 담당자의 확정 실적 없음','calculation':None,'sources':[]}
     for rows in by_person.values():selected.extend(rows[-1:] if plan['time_aggregation']=='latest' else rows)
+    if any(json.loads(r['definition'])['mode']!=plan['mode'] for r in selected):return {'ready':False,'reason':'실적과 현재 기준의 입력 방식이 다릅니다. 반려·최신 기준 적용 후 재제출해 주세요.','calculation':None,'sources':[r['id'] for r in selected]}
     if plan['mode']=='text':return {'ready':True,'reason':'비계량 등급 평가 필요','calculation':None,'sources':[r['id'] for r in selected]}
     values={}
     # Require compatible rules; never silently reinterpret prior snapshots.
@@ -480,6 +481,11 @@ def post(db,user,path,data,catalog,available):
             if day(r['start'])>datetime.now(timezone(timedelta(hours=9))).date():fail('아직 시작하지 않은 기간은 제출할 수 없습니다.')
             calculate(definition,json.loads(r['values_json']),True)
             if definition['mode']=='text' and not r['narrative'].strip():fail('보고서 내용을 입력한 후 제출해 주세요.')
+        if action=='return' and plan['mode']=='text':
+            existing_rating=db.execute('SELECT * FROM performance_ratings WHERE department=? AND year=? AND indicator=?',(dep,year,key)).fetchone()
+            if existing_rating and existing_rating['grade']:
+                db.execute('UPDATE performance_ratings SET grade=NULL,revision=revision+1 WHERE department=? AND year=? AND indicator=?',(dep,year,key))
+                m.audit(db,user['employee_id'],'보고서 반려로 등급 재평가 요청',dep,f'{year}:{key}',dict(existing_rating),{'grade':None},why)
         db.execute('UPDATE performance_records SET state=?,feedback=?,revision=revision+1,updated_at=? WHERE id=?',(transitions[action][1],why,m.stamp(),r['id']))
     else:fail('요청을 찾을 수 없습니다.',404)
     after=dict(db.execute('SELECT * FROM performance_records WHERE department=? AND year=? AND indicator=? AND employee=? AND start=? AND end=?',(dep,year,key,owner,p['start'],p['end'])).fetchone())

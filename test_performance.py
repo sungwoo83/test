@@ -180,6 +180,17 @@ class PerformanceFlow(unittest.TestCase):
         self.assertEqual(self.request(uri)[1]['score'],'20.0000')
         self.assertEqual(self.post('/api/performance/year',self.payload(revision=1,closed=False))[0],200)
 
+    def test_returned_report_requires_grade_reassessment(self):
+        self.configure(definition(mode='text'))
+        self.cookie=self.worker
+        self.assertEqual(self.post('/api/performance/record',self.payload(revision=0,values={},narrative='평가 보고서',plan='',status='완료'))[0],200)
+        self.transition('submit',1);self.transition('approve',2,self.manager)
+        self.cookie=self.manager
+        self.assertEqual(self.post('/api/performance/rating',self.payload(revision=0,evaluator='manager',grade='A',adjustment='0',excluded=False))[0],200)
+        self.assertEqual(self.transition('return',3,self.manager)[0],200)
+        with app.connect() as db:
+            row=db.execute('SELECT grade,revision FROM performance_ratings').fetchone();self.assertIsNone(row['grade']);self.assertEqual(row['revision'],2)
+
     def test_structured_weekly_records_feed_the_main_dashboard(self):
         config=definition();config['schedule'][0]['cadence']='weekly';self.configure(config);self.save()
         self.cookie=self.worker
