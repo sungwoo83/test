@@ -36,7 +36,11 @@ class ProfileFlow(unittest.TestCase):
         if cookie: self.cookie=cookie.split(';')[0]
         c.close(); return status,value
     def register(self,employee='000123'):
-        return self.request('/api/register',{'employee_id':employee,'display_name':'테스트 직원 '+employee,'password':self.password,'department_id':self.a['id'],'indicators':self.ka})
+        result=self.request('/api/register',{'employee_id':employee,'display_name':'테스트 직원 '+employee,'password':self.password,'department_id':self.a['id'],'indicators':self.ka})
+        # Existing workflow fixtures represent already confirmed staff assignments.
+        if result[0]==200:
+            with app.connect() as db:db.execute('UPDATE users SET assignment_confirmed=1 WHERE employee_id=?',(employee,))
+        return result
     def test_full_flow_and_database_persistence(self):
         self.assertEqual(self.request('/api/me')[0],401)
         self.assertEqual(self.register()[0],200)

@@ -63,7 +63,7 @@ def enrich_items(db,department,year,items,records):
     return result
 
 def save_settings(db,user,data,catalog,available):
-    department=data.get('department_id');m.department_scope(user,department,catalog);m.require_manager(user,department)
+    department=data.get('department_id');m.department_scope(user,department,catalog);m.require_super(user)
     year,month=m.period_args(data)
     import performance
     performance.writable(db,department,year)
@@ -84,7 +84,9 @@ def save_settings(db,user,data,catalog,available):
     rows=list(db.execute('''SELECT a.* FROM monthly_actuals a LEFT JOIN monthly_periods p
         ON p.department_id=a.department_id AND p.year=a.year AND p.month=a.month
         WHERE a.department_id=? AND a.indicator_id=? AND a.year=? AND COALESCE(p.status,'open')!='closed' ''',(department,indicator['id'],year)))
+    import office
     for row in rows:
+        office.guard(db,'legacy',row['id'])
         old=json.loads(row['snapshot']);old_mode=old.get('entry_mode','numeric' if old.get('type')=='계량' else 'text')
         if mode!=old_mode and (row['actual'] not in ('',None) or row['narrative'] or row['adjusted'] is not None):
             raise m.APIError(409,'실적이 있는 지표의 수치/서술 입력 방식은 변경할 수 없습니다.')

@@ -57,6 +57,8 @@ def initialize():
         manual_defaults.seed(db, CATALOG)
         import performance
         performance.initialize(db)
+        import office
+        office.initialize(db)
 
 def now():
     return datetime.now(timezone.utc).isoformat()
@@ -77,7 +79,7 @@ def available(department_id, db=None):
 
 def profile(row):
     return {k: json.loads(row[k]) if k == 'indicators' else row[k]
-            for k in ('employee_id', 'department_id', 'indicators', 'revision', 'role', 'admin_department_id', 'display_name')}
+            for k in ('employee_id', 'department_id', 'indicators', 'revision', 'role', 'admin_department_id', 'display_name', 'assignment_confirmed')}
 
 def selection(data):
     dept, values = data.get('department_id'), data.get('indicators')
@@ -135,6 +137,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split('?')[0]
+        if path=='/api/evidence-bundle.zip':
+            return self.evidence_bundle()
         if path.startswith('/api/performance/files/'):
             return self.performance_file_download(path)
         if path=='/api/performance.xlsx':
@@ -198,7 +202,10 @@ class Handler(BaseHTTPRequestHandler):
                 user = db.execute('SELECT * FROM users WHERE employee_id=?', (session['employee_id'],)).fetchone()
                 params = {k:v[0] for k,v in parse_qs(urlsplit(self.path).query).items()}
                 try:
-                    if path.startswith('/api/performance'):
+                    if path=='/api/performance/office':
+                        import office
+                        result=office.preview(db,user,params,management.effective_catalog(db,CATALOG),available)
+                    elif path.startswith('/api/performance'):
                         import performance
                         result=performance.get(db,user,path,params,management.effective_catalog(db,CATALOG),available)
                     else:result=management.get(db,user,path,params,management.effective_catalog(db,CATALOG),available)
@@ -267,7 +274,7 @@ class Handler(BaseHTTPRequestHandler):
                         dept, indicators = selection(data)
                         if db.execute('SELECT 1 FROM users WHERE employee_id=?', (employee,)).fetchone():
                             return self.reply(409, {'error': '이미 가입된 사번입니다. 로그인해 주세요.'})
-                        db.execute('INSERT INTO users(employee_id,password_hash,department_id,indicators,revision,created_at,display_name) VALUES(?,?,?,?,1,?,?)', (employee, password_hash(password), dept, json.dumps(indicators), now(),display_name))
+                        db.execute('INSERT INTO users(employee_id,password_hash,department_id,indicators,revision,created_at,display_name,assignment_confirmed) VALUES(?,?,?,?,1,?,?,0)', (employee, password_hash(password), dept, json.dumps(indicators), now(),display_name))
                         db.execute('INSERT INTO changes(employee_id,after_json,changed_at) VALUES(?,?,?)', (employee, json.dumps({'department_id': dept, 'indicators': indicators}), now()))
                     else:
                         row = db.execute('SELECT * FROM users WHERE employee_id=?', (employee,)).fetchone()
@@ -296,7 +303,10 @@ class Handler(BaseHTTPRequestHandler):
                 user = db.execute('SELECT * FROM users WHERE employee_id=?', (session['employee_id'],)).fetchone()
                 if self.path.startswith('/api/performance'):
                     import performance
-                    if self.path=='/api/performance/files/delete':
+                    if self.path=='/api/performance/office':
+                        import office
+                        result=office.post(db,user,data,management.effective_catalog(db,CATALOG),available)
+                    elif self.path=='/api/performance/files/delete':
                         import performance_files
                         result=performance_files.delete(db,user,data.get('file_id'),CATALOG)
                     else:result=performance.post(db,user,self.path,data,management.effective_catalog(db,CATALOG),available)
@@ -319,7 +329,7 @@ class Handler(BaseHTTPRequestHandler):
                     before = {'department_id': row['department_id'], 'indicators': json.loads(row['indicators'])}
                     after = {'department_id': dept, 'indicators': indicators}
                     if before != after:
-                        db.execute('UPDATE users SET department_id=?,indicators=?,revision=revision+1 WHERE employee_id=?', (dept, json.dumps(indicators), row['employee_id']))
+                        db.execute('UPDATE users SET department_id=?,indicators=?,assignment_confirmed=0,revision=revision+1 WHERE employee_id=?', (dept, json.dumps(indicators), row['employee_id']))
                         db.execute('INSERT INTO changes(employee_id,before_json,after_json,changed_at) VALUES(?,?,?,?)', (row['employee_id'], json.dumps(before), json.dumps(after), now()))
                     db.commit()
                     return self.reply(200, {'ok': True})
@@ -394,6 +404,25 @@ class Handler(BaseHTTPRequestHandler):
         except (sqlite3.Error,OSError):self.reply(503, {'error':'파일 검증에 실패했습니다. 다시 시도해 주세요.'})
 
 
+    def evidence_bundle(self):
+        bundle=None
+        try:
+            import evidence_bundle
+            with connect() as db:
+                session=self.session(db)
+                if not session:return self.reply(401,{'error':'로그인이 필요합니다.'})
+                user=db.execute('SELECT * FROM users WHERE employee_id=?',(session['employee_id'],)).fetchone();management.require_super(user)
+                params={k:v[0] for k,v in parse_qs(urlsplit(self.path).query).items()};db.execute('BEGIN')
+                bundle,summary=evidence_bundle.export(db,user,params,management.effective_catalog(db,CATALOG),available,DB.parent/'uploads')
+            with connect() as db:management.audit(db,user['employee_id'],'공문 검증용 증빙 일괄 다운로드',None,summary['year'],None,summary,'수퍼관리자 공문 검증자료 취합')
+            bundle.seek(0,2);length=bundle.tell();bundle.seek(0)
+            self.send_response(200);self.headers_common('application/zip',length);self.send_header('Content-Disposition',f'attachment; filename="evidence-{summary["year"]}-{summary["group_by"]}.zip"');self.end_headers()
+            for block in iter(lambda:bundle.read(1024*1024),b''):self.wfile.write(block)
+        except management.APIError as e:self.reply(e.status,{'error':str(e)})
+        except (OSError,sqlite3.Error):self.reply(503,{'error':'증빙자료 취합에 실패했습니다. 저장공간과 파일 상태를 확인해 주세요.'})
+        finally:
+            if bundle:bundle.close()
+
     def performance_backup(self):
         try:
             import operations
@@ -456,7 +485,16 @@ class Handler(BaseHTTPRequestHandler):
                 if not session:return self.reply(401,{'error':'로그인이 필요합니다.'})
                 user=db.execute('SELECT * FROM users WHERE employee_id=?',(session['employee_id'],)).fetchone();params={k:v[0] for k,v in parse_qs(urlsplit(self.path).query).items()}
                 dep,year=performance.scope(db,user,params,CATALOG);management.require_manager(user,dep)
-                if params.get('kind')=='audit':
+                if params.get('kind')=='office':
+                    import office
+                    report=office.snapshot(db,user,params,management.effective_catalog(db,CATALOG))
+                    rows=[['지표','가중치','유효배점','득점','득점률','누계 집계기준','이전자료 검토']]
+                    details=[['지표','사번','기간','상태','실적·대상없음 사유','추진내용','향후계획']]
+                    for item in report['items']:
+                        calc=item['aggregate'].get('calculation') or {};rows.append([item['indicator']['name'],item['definition']['weight'],calc.get('effective_weight'),calc.get('score'),calc.get('percent'),item['definition']['time_aggregation'],json.dumps(item.get('legacy_review',{}),ensure_ascii=False)])
+                        for record in item['records']:details.append([item['indicator']['name'],record['employee'],record['start']+' ~ '+record['end'],record['state'],json.dumps(record['values'],ensure_ascii=False),record['narrative'],record['plan']])
+                    sheets=[('공식 제출집계',rows),('직원 원시실적',details),('제출정보',[['기준일','버전','상태','제출자','사유','원본 SHA-256'],[report['as_of'],report['submission_version'],report['submission_state'],report['actor'],report['reason'],report['sha256']]])]
+                elif params.get('kind')=='audit':
                     events=performance.get(db,user,'/api/performance/audit',params,CATALOG,available)['events'];rows=[['시각','처리자','작업','대상','사유','변경 전','변경 후']]+[[r[k] for k in ('created_at','actor','action','target','reason','before_json','after_json')] for r in events];sheets=[('변경이력',rows)]
                 elif params.get('kind')=='annual':
                     report=performance.annual(db,user,dep,year,management.effective_catalog(db,CATALOG),available);rows=[['지표','배점','득점','평가자','등급','가감점','결측','근거']]+[[r['indicator']['name'],r['definition']['weight'],r['score'],r['rating']['evaluator'],r['rating']['grade'],r['rating']['adjustment'],r['rating']['excluded'],r['reason']] for r in report['items']];rows.append(['합계',report['maximum'],report['score']]);sheets=[('최종평가',rows)]

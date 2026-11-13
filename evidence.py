@@ -21,6 +21,8 @@ def accessible_record(db,user,record_id,catalog,write=False):
     if write:
         import performance
         performance.writable(db,row['department_id'],row['year'])
+        import office
+        office.guard(db,'legacy',row['id'])
     if user['role']=='employee':
         import json
         if row['employee_id']!=user['employee_id'] or write and row['indicator_id'] not in json.loads(user['indicators']):raise m.APIError(403,'담당지표의 증빙만 접근할 수 있습니다.')

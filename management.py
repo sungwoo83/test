@@ -151,6 +151,7 @@ def indicator_definition(data):
 
 def post(db,user,path,data,catalog,available):
     actor=user['employee_id']
+    if path=='/api/monthly/settings':require_super(user)
     if path.startswith('/api/monthly/'):
         import performance,calendar
         department=data.get('department_id');year,month=period_args(data);performance.writable(db,department,year)
@@ -162,6 +163,7 @@ def post(db,user,path,data,catalog,available):
         import indicator_bulk
         return indicator_bulk.apply(db,user,data,catalog,available)
     if path=='/api/monthly/settings':
+        require_super(user)
         import progress
         return progress.save_settings(db,user,data,catalog,available)
     if path=='/api/evidence/delete':
@@ -210,6 +212,11 @@ def post(db,user,path,data,catalog,available):
         indicator=next((k for k in available(department,db) if k['id']==data.get('indicator_id')),None)
         if not indicator: raise APIError(400,'해당 부서의 지표를 선택해 주세요.')
         owner=data.get('employee_id',user['employee_id'])
+        import office
+        existing=db.execute('SELECT id FROM monthly_actuals WHERE department_id=? AND indicator_id=? AND year=? AND month=? AND employee_id=?',(department,indicator['id'],y,m,owner)).fetchone()
+        if existing:office.guard(db,'legacy',existing['id'])
+        else:office.guard_period(db,department,y,f'{y}-{m:02d}-01')
+        if owner==user['employee_id'] or user['role']=='employee':office.assignment(db,user,department,indicator['id'])
         if not isinstance(owner,str):raise APIError(400,'직원을 선택해 주세요.')
         if user['role']=='employee' and owner!=user['employee_id']:raise APIError(403,'다른 직원의 실적은 수정할 수 없습니다.')
         if path=='/api/monthly/adjust' and 'employee_id' not in data:

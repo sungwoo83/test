@@ -32,15 +32,15 @@ class PeriodAndScore(unittest.TestCase):
 
     def test_ratio_floor_cap_bands_and_no_fabricated_text_score(self):
         plan=definition()
-        self.assertEqual(p.calculate(plan,{'count':'0'})['score'],'6.0000')
-        self.assertEqual(p.calculate(plan,{'count':'50'})['score'],'20.0000')
-        self.assertEqual(p.calculate(plan,{'count':'5'})['percent'],'50.0000')
+        self.assertEqual(p.calculate(plan,{'count':'0'})['score'],'6.000')
+        self.assertEqual(p.calculate(plan,{'count':'50'})['score'],'20.000')
+        self.assertEqual(p.calculate(plan,{'count':'5'})['percent'],'50.000')
         self.assertIsNone(p.calculate(definition(mode='text'),{})['score'])
         with self.assertRaises(management.APIError):p.calculate(plan,{},True)
         with self.assertRaises(management.APIError):p.calculate(plan,{'count':'-1'})
         plan['components'][0].update({'method':'bands_lower','target':'0','bands':[['0','1'],['1','.6'],['2','.3']]})
-        self.assertEqual(p.calculate(plan,{'count':'1'})['score'],'12.0000')
-        self.assertEqual(p.calculate(plan,{'count':'7'})['score'],'6.0000')
+        self.assertEqual(p.calculate(plan,{'count':'1'})['score'],'12.000')
+        self.assertEqual(p.calculate(plan,{'count':'7'})['score'],'6.000')
 
     def test_ratio_aggregation_uses_total_denominator(self):
         plan=definition();plan.update({'aggregation':'ratio'});plan['components'][0].update({'method':'rate','target':'100','unit':'%','floor':'0'})
@@ -48,8 +48,8 @@ class PeriodAndScore(unittest.TestCase):
         for i,(n,d) in enumerate([('1','2'),('9','10')]):
             records.append({'id':i,'employee':str(i),'start':'2026-11-01','end':'2026-11-30','updated_at':'now','state':'approved','definition':json.dumps(plan),'values_json':json.dumps({'count':{'numerator':n,'denominator':d}})})
         result=p.aggregate(plan,records)
-        self.assertTrue(result['ready']);self.assertEqual(result['calculation']['percent'],'83.3333')
-        records[1]['state']='draft';self.assertEqual(p.aggregate(plan,records)['calculation']['percent'],'50.0000')
+        self.assertTrue(result['ready']);self.assertEqual(result['calculation']['percent'],'83.333')
+        records[1]['state']='draft';self.assertEqual(p.aggregate(plan,records)['calculation']['percent'],'50.000')
 
 
     def test_period_and_employee_averages_are_explicit(self):
@@ -58,7 +58,7 @@ class PeriodAndScore(unittest.TestCase):
         for i,(employee,value,month) in enumerate([('a','0',10),('a','10',11),('b','9',11)]):
             rows.append({'id':i,'employee':employee,'start':f'2026-{month:02d}-01','end':f'2026-{month:02d}-30','updated_at':'now','state':'approved','definition':json.dumps(plan),'values_json':json.dumps({'count':value})})
         # Employee a average=5, employee b=9, then employee average=7.
-        self.assertEqual(p.aggregate(plan,rows)['calculation']['percent'],'70.0000')
+        self.assertEqual(p.aggregate(plan,rows)['calculation']['percent'],'70.000')
 
 
 class PerformanceFlow(unittest.TestCase):
@@ -70,7 +70,7 @@ class PerformanceFlow(unittest.TestCase):
 
     def payload(self,**extra):return {'department_id':self.a['id'],'year':2026,'date':'2026-11-13','indicator_id':self.ka[0],'reason':'통합 성과관리 검증',**extra}
     def configure(self,config=None,revision=0,key=None):
-        self.cookie=self.manager
+        self.cookie=self.super_cookie
         payload=self.payload(revision=revision,definition=config or definition())
         if key:payload['indicator_id']=key
         status,data=self.post('/api/performance/plan',payload);self.assertEqual(status,200,data)
@@ -85,7 +85,7 @@ class PerformanceFlow(unittest.TestCase):
         return self.request('/api/performance?department_id='+self.a['id']+'&year=2026&date=2026-11-13&view='+mode)
     def test_plan_permissions_schema_validation_and_stale_revisions(self):
         self.cookie=self.worker;self.assertEqual(self.post('/api/performance/plan',self.payload(revision=0,definition=definition()))[0],403)
-        bad=definition();bad['components'][0]['weight']='5';self.cookie=self.manager
+        bad=definition();bad['components'][0]['weight']='5';self.cookie=self.super_cookie
         self.assertEqual(self.post('/api/performance/plan',self.payload(revision=0,definition=bad))[0],400)
         self.configure();self.assertEqual(self.post('/api/performance/plan',self.payload(revision=0,definition=definition()))[0],409)
         self.cookie=self.worker;self.assertEqual(self.request('/api/performance?department_id='+self.b['id']+'&year=2026&date=2026-11-13')[0],403)
@@ -94,16 +94,16 @@ class PerformanceFlow(unittest.TestCase):
 
     def test_submit_approve_return_and_snapshot_preservation(self):
         self.configure();status,data=self.save();self.assertEqual(status,200,data)
-        self.assertEqual(data['record']['calculation']['percent'],'50.0000')
+        self.assertEqual(data['record']['calculation']['percent'],'50.000')
         self.assertEqual(self.transition('submit',1)[0],200);self.assertEqual(self.save(revision=2)[0],409)
         self.assertEqual(self.transition('approve',2)[0],403)
         self.assertEqual(self.transition('approve',2,self.manager)[0],200)
         changed=definition();changed['components'][0]['target']='20';self.configure(changed,1)
-        item=self.view()[1]['items'][0];self.assertEqual(item['records'][0]['calculation']['percent'],'50.0000')
+        item=self.view()[1]['items'][0];self.assertEqual(item['records'][0]['calculation']['percent'],'50.000')
         self.assertFalse(self.view('review')[1]['items'][0]['aggregate']['ready'])
         self.assertEqual(self.transition('return',3,self.manager)[0],200)
         self.assertEqual(self.save(revision=4,rebase=True)[0],200)
-        self.assertEqual(self.view()[1]['items'][0]['records'][0]['calculation']['percent'],'30.0000')
+        self.assertEqual(self.view()[1]['items'][0]['records'][0]['calculation']['percent'],'30.000')
 
     def test_weekly_switch_and_legacy_data_are_not_overwritten(self):
         plan=definition();plan['schedule']=[{'effective':'2026-01-01','cadence':'monthly'},{'effective':'2026-11-01','cadence':'weekly'}]
@@ -111,12 +111,12 @@ class PerformanceFlow(unittest.TestCase):
         self.assertEqual(data['record']['start'],'2026-11-09')
         self.cookie=self.worker
         self.assertEqual(self.post('/api/monthly/actual',{**self.payload(),'month':11,'revision':0,'value':'7','reason':'중복 입력'})[0],409)
-        changed=definition();self.cookie=self.manager
+        changed=definition();self.cookie=self.super_cookie
         self.assertEqual(self.post('/api/performance/plan',self.payload(revision=1,definition=changed))[0],409)
         # A separate indicator with old monthly data must start the new workflow later.
         self.cookie=self.worker
         self.assertEqual(self.post('/api/monthly/actual',{**self.payload(indicator_id=self.ka[1]),'month':5,'revision':0,'value':'7','reason':'이전 실적'})[0],200)
-        self.cookie=self.manager
+        self.cookie=self.super_cookie
         self.assertEqual(self.post('/api/performance/plan',self.payload(indicator_id=self.ka[1],revision=0,definition=definition()))[0],409)
 
     def test_period_lock_requires_all_assigned_people_and_blocks_evidence(self):
@@ -160,6 +160,7 @@ class PerformanceFlow(unittest.TestCase):
         self.assertEqual(self.post('/api/performance/grade',self.payload(revision=1,grade='A'))[0],200)
         self.cookie=self.manager
         self.assertEqual(self.post('/api/performance/grade',self.payload(revision=2,grade='S'))[0],403)
+        self.cookie=self.super_cookie
         self.assertEqual(self.post('/api/performance/copy-year',self.payload(year=2027,source_year=2026))[0],200)
         self.assertEqual(self.post('/api/performance/copy-year',self.payload(year=2027,source_year=2026))[0],409)
         with app.connect() as db:
@@ -173,11 +174,11 @@ class PerformanceFlow(unittest.TestCase):
         self.cookie=self.manager
         for key in keys[1:]:self.assertEqual(self.post('/api/performance/rating',self.payload(indicator_id=key,revision=0,evaluator='manager',grade='',adjustment='0',excluded=True))[0],200)
         uri='/api/performance/annual?department_id='+self.a['id']+'&year=2026'
-        report=self.request(uri)[1];self.assertTrue(report['ready']);self.assertEqual(report['score'],'20.0000')
+        report=self.request(uri)[1];self.assertTrue(report['ready']);self.assertEqual(report['score'],'20.000')
         self.assertEqual(self.post('/api/performance/year',self.payload(revision=0,closed=True))[0],200)
         self.assertEqual(self.post('/api/performance/plan',self.payload(revision=1,definition=definition()))[0],409)
         self.assertEqual(self.post('/api/monthly/actual',{**self.payload(),'month':1,'revision':0,'value':'1','reason':'과거 변경'})[0],409)
-        self.assertEqual(self.request(uri)[1]['score'],'20.0000')
+        self.assertEqual(self.request(uri)[1]['score'],'20.000')
         self.assertEqual(self.post('/api/performance/year',self.payload(revision=1,closed=False))[0],200)
 
     def test_returned_report_requires_grade_reassessment(self):
@@ -196,8 +197,8 @@ class PerformanceFlow(unittest.TestCase):
         self.cookie=self.worker
         status,data=self.request('/api/dashboard?year=2026&month=11');self.assertEqual(status,200,data)
         metric=next(r for r in data['metrics'] if r['indicator']['id']==self.ka[0])
-        self.assertEqual(metric['source'],'periodic');self.assertEqual(metric['achievement_percent'],'50.0000');self.assertEqual(metric['workflow_state'],'draft')
-        self.assertEqual(metric['evidence_count'],0);self.assertEqual(metric['history'][10]['percent'],'50.0000')
+        self.assertEqual(metric['source'],'periodic');self.assertEqual(metric['achievement_percent'],'50.000');self.assertEqual(metric['workflow_state'],'draft')
+        self.assertEqual(metric['evidence_count'],0);self.assertEqual(metric['history'][10]['percent'],'50.000')
 
     def test_manager_cannot_take_over_another_manager_account(self):
         self.cookie=self.manager
@@ -222,9 +223,10 @@ class PerformanceFlow(unittest.TestCase):
     def test_preview_and_manual_backup_are_scoped(self):
         self.configure();self.cookie=self.worker
         result=self.post('/api/performance/preview',self.payload(values={'count':'5'}))
-        self.assertEqual(result[0],200);self.assertEqual(result[1]['calculation']['score'],'10.0000')
+        self.assertEqual(result[0],200);self.assertEqual(result[1]['calculation']['score'],'10.000')
         self.assertEqual(self.post('/api/performance/plan',self.payload(revision=1,definition=[]))[0],403)
-        self.cookie=self.manager;self.assertEqual(self.post('/api/performance/plan',self.payload(revision=1,definition=[]))[0],400)
+        self.cookie=self.super_cookie;self.assertEqual(self.post('/api/performance/plan',self.payload(revision=1,definition=[]))[0],400)
+        self.cookie=self.manager
         self.assertEqual(self.post('/api/performance/backup',{'reason':'관리자 백업 시도'})[0],403)
         self.cookie=self.super_cookie;status,result=self.post('/api/performance/backup',{'reason':'수퍼관리자 백업 검증'});self.assertEqual(status,200,result)
         status,result=self.request('/api/performance/operations');self.assertEqual(status,200,result);self.assertEqual(len(result['backups']),1)

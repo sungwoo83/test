@@ -24,8 +24,8 @@ def initialize(db):
 
 def fail(message,status=400):raise m.APIError(status,message)
 def dumps(value):return json.dumps(value,ensure_ascii=False)
-def dec(value):return Decimal(m.number(value))
-def fmt(value):return format(Decimal(value).quantize(Decimal('.0001'),rounding=ROUND_HALF_UP),'f')
+def dec(value):return value if isinstance(value,Decimal) else Decimal(m.number(value))
+def fmt(value):return format(Decimal(value).quantize(Decimal('.001'),rounding=ROUND_HALF_UP),'f')
 def integer(value,low=2020,high=2100):
     if isinstance(value,bool) or not str(value).isdigit() or not low<=int(value)<=high:fail('연도 또는 번호를 확인해 주세요.')
     return int(value)
@@ -50,7 +50,7 @@ def indicator_for(db,department,key,available):
 
 
 def default_components(key,config):
-    """Only explicit manual rules; unknown components remain manager-configurable."""
+    """Only explicit manual rules; unknown components remain superadmin-configurable."""
     def c(i,name,weight,target,unit,method='ratio',**extra):return {'id':str(i),'name':name,'weight':str(weight),'target':str(target),'unit':unit,'method':method,'floor':'0.3','cap':'1',**extra}
     rules={
       'KPI-024':[c(1,'공공데이터 제공 운영 실태 평가',5,'74.8','점'),c(2,'데이터기반행정 실태 점검',5,'72.9','점')],
@@ -61,7 +61,12 @@ def default_components(key,config):
       'KPI-030':[c(1,'부패·불공정요인 제도개선',3,2,'건','bands',bands=[['2','1'],['1','.65'],['0','.3']]),c(2,'감사 지적사항 적시 이행률',1,100,'%','bands',bands=[['100','1'],['90','.8'],['70','.6'],['0','.3']]),c(3,'내부통제 강화·개선',1,1,'점','points')]
     }
     if config['entry_mode']=='text':return []
-    if config.get('manual_reference') and key in rules:return rules[key]
+    if config.get('manual_reference') and key in rules:
+        parts=rules[key]
+        policies={'KPI-027':{'3':('exclude','담당 공시항목 수')},'KPI-028':{'2':('full','발견 취약점 수'),'3':('full','해킹메일 열람자 수')},'KPI-029':{'1':('exclude','당해연도 체크리스트 수'),'2':('exclude','당해연도 체크리스트 수')},'KPI-030':{'2':('full','감사 지적사항 수')}}
+        for c in parts:
+            if c['id'] in policies.get(key,{}):c['no_target_policy'],c['no_target_label']=policies[key][c['id']]
+        return parts
     target=config.get('target');weight=config.get('weight')
     return [c(1,'지표 실적',weight or 0,target or 100,config.get('unit',''),floor='0')] if target and Decimal(target)>0 else []
 
@@ -76,7 +81,7 @@ def get_plan(db,department,year,indicator):
         'components':default_components(indicator['id'],config),'schedule':[{'effective':f'{year}-01-01','cadence':'monthly'}],
         'start':f'{year}-01-01','end':f'{year}-11-30','due_days':7,'curve':config.get('dashboard_curve','linear'),
         'milestones':[],'aggregation':'representative','representative':'','time_aggregation':'latest',
-        'revision':0,'configured':False,'reference':config.get('manual_reference')}
+        'revision':0,'configured':False,'reference':config.get('manual_reference'),'verification_departments':(['AI정보융합실'] if '정보보안' in indicator['name'] else ['감사실'] if '청렴' in indicator['name'] else ['성과혁신실','환경협력처'] if '사회적 책임' in indicator['name'] else ['성과혁신실'])}
 
 
 def period(plan,reference):
@@ -94,7 +99,10 @@ def period(plan,reference):
 
 def validate_plan(db,department,year,item,data):
     if not isinstance(data,dict):fail('지표 설정 형식을 확인해 주세요.')
-    definition={k:data.get(k) for k in ('mode','weight','components','schedule','start','end','due_days','curve','milestones','aggregation','representative','time_aggregation')}
+    definition={k:data.get(k) for k in ('mode','weight','components','schedule','start','end','due_days','curve','milestones','aggregation','representative','time_aggregation','verification_departments')}
+    recipients=data.get('verification_departments',[])
+    if not isinstance(recipients,list) or len(recipients)>10 or any(not isinstance(v,str) or not 1<=len(v.strip())<=100 or any(ord(ch)<32 or 0xD800<=ord(ch)<=0xDFFF for ch in v) for v in recipients):fail('공문 검증부서는 최대 10곳으로 지정해 주세요.')
+    definition['verification_departments']=list(dict.fromkeys(v.strip() for v in recipients))
     ref=progress.settings(db,department,year,item).get('manual_reference')
     if ref:definition['reference']={**ref,'note':'편람 원문 참고입니다. 등록된 세부 실적·산식으로 계산하며, 환산점수 직접 입력 항목은 확인한 점수와 근거를 입력합니다.'}
     definition['name']=item['name'];definition['weight']=m.number(definition['weight'])
@@ -150,6 +158,8 @@ def validate_plan(db,department,year,item,data):
                 v,p=dec(pair[0]),dec(pair[1])
                 if v in seen or not 0<=p<=1:fail('중복 기준 또는 잘못된 득점비율입니다.')
                 seen.add(v)
+        if r.get('no_target_policy','none') not in ('none','full','exclude'):fail('대상 없음 처리 기준을 확인해 주세요.')
+        r['no_target_label']=text(r.get('no_target_label','대상 수'),100)
         total+=dec(r['weight'])
     if definition['mode']=='numeric' and (not components or total!=dec(definition['weight'])):fail('세부항목 배점 합계가 지표 가중치와 같아야 합니다.')
     if definition['mode']=='text' and components:fail('비계량 지표는 세부 수치항목 없이 등급으로 평가합니다.')
@@ -161,7 +171,7 @@ def validate_plan(db,department,year,item,data):
     return definition
 
 
-def calculate(plan,values,complete=False):
+def _calculate_numeric(plan,values,complete=False):
     if plan['mode']=='text':return {'score':None,'percent':None,'components':[]}
     if not isinstance(values,dict) or set(values)-{c['id'] for c in plan['components']}:fail('세부 실적 항목을 확인해 주세요.')
     parts=[];total=Decimal(0);missing=[]
@@ -196,11 +206,18 @@ def calculate(plan,values,complete=False):
     return {'score':fmt(total) if not missing else None,'percent':fmt(total/dec(plan['weight'])*100) if not missing and dec(plan['weight'])>0 else None,'components':parts,'missing':missing}
 
 
+def calculate(plan,values,complete=False):
+    import score_rules
+    return score_rules.calculate(plan,values,complete,_calculate_numeric)
+
+
 def lock_state(db,dep,year,key,p):
     row=db.execute('SELECT * FROM performance_locks WHERE department=? AND year=? AND indicator=? AND start=? AND end=?',(dep,year,key,p['start'],p['end'])).fetchone()
     return dict(row) if row else {'closed':0,'revision':0}
 def check_open(db,record):
     writable(db,record['department'],record['year'])
+    import office
+    office.guard(db,'periodic',record['id'])
     if lock_state(db,record['department'],record['year'],record['indicator'],record)['closed']:fail('마감된 기간입니다.',409)
 def inherited_readable(db,user,record):
     if user['department_id']!=record['department']:return False
@@ -229,10 +246,24 @@ def record_access(db,user,key,catalog,write=False):
 def public_record(db,row):
     r=dict(row);r['definition']=json.loads(r['definition']);r['values']=json.loads(r.pop('values_json'))
     r['calculation']=calculate(r['definition'],r['values'])
+    r['officially_submitted']=bool(db.execute("SELECT 1 FROM office_submission_sources x JOIN office_submissions s ON s.id=x.submission_id WHERE x.kind='periodic' AND x.record_id=? AND s.state='submitted'",(r['id'],)).fetchone())
     r['files']=[dict(f) for f in db.execute('SELECT id,original_name,size,uploaded_by FROM performance_files WHERE record_id=? AND deleted_at IS NULL',(r['id'],))]
     return r
 
 def pack_records(db,rows):return [public_record(db,r) for r in rows]
+
+def same_components(left,right):
+    def normalized(rows):
+        result=[]
+        for c in rows:
+            row={k:c.get(k) for k in ('id','unit','method')}
+            for key in ('weight','target','floor','cap'):row[key]=format(dec(c[key]).normalize(),'f')
+            row['no_target_policy']=c.get('no_target_policy','none')
+            row['bands']=[(format(dec(v).normalize(),'f'),format(dec(r).normalize(),'f')) for v,r in c.get('bands',[])]
+            result.append(row)
+        return result
+    return normalized(left)==normalized(right)
+
 
 def aggregate(plan,records):
     approved=[r for r in records if r['state']=='approved']
@@ -247,24 +278,15 @@ def aggregate(plan,records):
     for rows in by_person.values():selected.extend(rows[-1:] if plan['time_aggregation']=='latest' else rows)
     if any(json.loads(r['definition'])['mode']!=plan['mode'] for r in selected):return {'ready':False,'reason':'실적과 현재 기준의 입력 방식이 다릅니다. 반려·최신 기준 적용 후 재제출해 주세요.','calculation':None,'sources':[r['id'] for r in selected]}
     if plan['mode']=='text':return {'ready':True,'reason':'비계량 등급 평가 필요','calculation':None,'sources':[r['id'] for r in selected]}
-    values={}
-    # Require compatible rules; never silently reinterpret prior snapshots.
     for r in selected:
         old=json.loads(r['definition'])
-        if old['components']!=plan['components']:return {'ready':False,'reason':'확정 실적의 계산 기준이 현재 기준과 다릅니다. 이전 기준을 복원하거나 해당 실적을 검토·재제출해 주세요.','calculation':None,'sources':[r['id'] for r in selected]}
-    for c in plan['components']:
-        raw=[json.loads(r['values_json']).get(c['id']) for r in selected]
-        if any(v in ('',None) for v in raw):return {'ready':False,'reason':'확정 실적 세부항목 누락','calculation':None,'sources':[]}
-        if c['method']=='rate':values[c['id']]={'numerator':fmt(sum(dec(v['numerator']) for v in raw)),'denominator':fmt(sum(dec(v['denominator']) for v in raw))}
-        else:
-            person_values=[]
-            for employee in sorted({r['employee'] for r in selected}):
-                person_raw=[dec(json.loads(r['values_json'])[c['id']]) for r in selected if r['employee']==employee]
-                person_values.append(sum(person_raw)/len(person_raw) if plan['time_aggregation']=='average' else sum(person_raw))
-            combined=sum(person_values)/len(person_values) if plan['aggregation']=='average' else sum(person_values)
-            values[c['id']]=fmt(combined)
-    try:result=calculate(plan,values,True)
-    except m.APIError as e:return {'ready':False,'reason':str(e),'calculation':None,'sources':[r['id'] for r in selected]}
+        if not same_components(old['components'],plan['components']):return {'ready':False,'reason':'확정 실적의 계산 기준이 현재 기준과 다릅니다. 반려·최신 기준 적용·재제출 후 취합해 주세요.','calculation':None,'sources':[r['id'] for r in selected]}
+    import score_rules
+    try:
+        values=score_rules.aggregate_values(plan,selected,dec)
+        result=calculate(plan,values,True)
+    except (m.APIError,KeyError,TypeError) as e:return {'ready':False,'reason':str(e),'calculation':None,'sources':[r['id'] for r in selected]}
+    values=score_rules.serializable(values)
     return {'ready':True,'reason':'확정 실적 기준','values':values,'calculation':result,'sources':[r['id'] for r in selected]}
 
 
@@ -286,7 +308,8 @@ def annual(db,user,dep,year,catalog,available):
         if score is None:ready=False
         else:
             if not rating['excluded']:
-                maximum+=dec(plan['weight']);score=max(Decimal(0),min(dec(plan['weight']),score+dec(rating['adjustment'])));total+=score
+                effective=dec(result['calculation'].get('effective_weight',plan['weight'])) if plan['mode']=='numeric' and result.get('calculation') else dec(plan['weight'])
+                maximum+=effective;score=max(Decimal(0),min(effective,score+dec(rating['adjustment'])));total+=score
         items.append({'indicator':indicator,'definition':plan,'aggregate':result,'rating':rating,'score':fmt(score) if score is not None else None,'reason':why,'unconfirmed':sum(r['state']!='approved' for r in records)})
         if not rating['excluded'] and any(r['state']!='approved' for r in records):ready=False
     row=db.execute('SELECT * FROM performance_years WHERE department=? AND year=?',(dep,year)).fetchone()
@@ -298,6 +321,10 @@ def annual(db,user,dep,year,catalog,available):
 
 
 def get(db,user,path,params,catalog,available):
+    if path=='/api/performance/evidence-routing':
+        m.require_super(user)
+        saved={r['indicator']:r for r in db.execute('SELECT * FROM evidence_recipient_rules')}
+        return {'items':[{'id':k['id'],'name':k['name'],'applies_to':k['applies_to'],'recipients':json.loads(saved[k['id']]['recipients']) if k['id'] in saved else [],'revision':saved[k['id']]['revision'] if k['id'] in saved else 0} for k in catalog['indicators']]}
     if path=='/api/performance/overview':
         m.require_super(user);year=integer(params.get('year'));reference=params.get('date',f'{year}-01-01');day(reference);places=[]
         for dep in catalog['departments']:
@@ -333,7 +360,7 @@ def get(db,user,path,params,catalog,available):
                 'legacy':[{**dict(r),'files':progress.list_attachments(db,r['id'])} for r in db.execute('SELECT id,department_id,indicator_id,year,month,actual,status FROM monthly_actuals WHERE employee_id=? ORDER BY year DESC,month DESC LIMIT 300',(owner,))]}
     if path=='/api/performance/users':
         if not manager(user):fail('관리자만 조회할 수 있습니다.',403)
-        return {'users':[dict(r) for r in db.execute("SELECT employee_id,display_name,department_id,indicators,role,account_status FROM users WHERE (?='superadmin' OR department_id=?) ORDER BY employee_id",(user['role'],user['admin_department_id']))]}
+        return {'users':[dict(r) for r in db.execute("SELECT employee_id,display_name,department_id,indicators,role,account_status,assignment_confirmed,revision FROM users WHERE (?='superadmin' OR department_id=?) ORDER BY employee_id",(user['role'],user['admin_department_id']))]}
     dep,year=scope(db,user,params,catalog)
     if path=='/api/performance/annual':return annual(db,user,dep,year,catalog,available)
     if path=='/api/performance/audit':
@@ -346,7 +373,7 @@ def get(db,user,path,params,catalog,available):
     if d.year!=year:fail('기준일은 선택한 평가연도 안이어야 합니다.')
     indicators=available(dep,db)
     if view!='review':indicators=[k for k in indicators if dep==user['department_id'] and k['id'] in json.loads(user['indicators'])]
-    people=[dict(r) for r in db.execute("SELECT employee_id,display_name,indicators FROM users WHERE department_id=? AND account_status='active'",(dep,))]
+    people=[dict(r) for r in db.execute("SELECT employee_id,display_name,indicators FROM users WHERE department_id=? AND account_status='active' AND assignment_confirmed=1",(dep,))]
     results=[]
     for indicator in indicators:
         plan=get_plan(db,dep,year,indicator)
@@ -359,13 +386,23 @@ def get(db,user,path,params,catalog,available):
         legacy=[dict(r) for r in db.execute('SELECT employee_id,year,month,actual,status FROM monthly_actuals WHERE department_id=? AND year=? AND indicator_id=? AND (?=1 OR employee_id=?) ORDER BY month',(dep,year,indicator['id'],int(view=='review'),user['employee_id']))]
         results.append({'indicator':indicator,'definition':plan,'period':p,'lock':lock_state(db,dep,year,indicator['id'],p) if p else {'closed':0,'revision':0},
                         'records':pack_records(db,current),'history':pack_records(db,visible),'assigned':assigned if view=='review' else [],
-                        'aggregate':aggregate(plan,records) if view=='review' else None,'legacy':legacy,'monitor':monitoring(plan,visible,min(datetime.now(timezone(timedelta(hours=9))).date().isoformat(),p['end'] if p else reference))})
+                        'aggregate':aggregate(plan,records) if view=='review' else None,'legacy':legacy,'totals':numeric_totals(plan,visible,reference,user['employee_id'] if view!='review' else None)})
     ys=db.execute('SELECT closed,revision FROM performance_years WHERE department=? AND year=?',(dep,year)).fetchone()
     return {'department_id':dep,'year':year,'date':reference,'items':results,'year_state':dict(ys) if ys else {'closed':0,'revision':0}}
 
 
 def post(db,user,path,data,catalog,available):
     if 'revision' in data:data['revision']=integer(data['revision'],0,10**12)
+    if path=='/api/performance/evidence-routing':
+        m.require_super(user);why=m.reason(data);key=data.get('indicator_id')
+        if not any(k['id']==key for k in catalog['indicators']):fail('지표를 확인해 주세요.')
+        recipients=data.get('recipients')
+        if not isinstance(recipients,list) or not 1<=len(recipients)<=10 or any(not isinstance(v,str) or not 1<=len(v.strip())<=100 or any(ord(c)<32 or 0xD800<=ord(c)<=0xDFFF for c in v) for v in recipients):fail('공문 검증부서를 1~10곳 지정해 주세요.')
+        old=db.execute('SELECT * FROM evidence_recipient_rules WHERE indicator=?',(key,)).fetchone()
+        if data.get('revision')!=(old['revision'] if old else 0):fail('분류 기준이 변경되었습니다. 다시 조회해 주세요.',409)
+        values=list(dict.fromkeys(v.strip() for v in recipients));revision=(old['revision'] if old else 0)+1
+        db.execute('INSERT INTO evidence_recipient_rules VALUES(?,?,?) ON CONFLICT(indicator) DO UPDATE SET recipients=excluded.recipients,revision=excluded.revision',(key,dumps(values),revision))
+        m.audit(db,user['employee_id'],'공문 검증부서 분류 설정',None,key,dict(old) if old else None,{'recipients':values,'revision':revision},why);return {'ok':True}
     if path=='/api/performance/account':return account(db,user,data,catalog)
     if path in ('/api/performance/record','/api/performance/transition','/api/performance/preview') and data.get('employee_id',user['employee_id'])==user['employee_id'] and data.get('department_id')==user['department_id']:
         dep,year=user['department_id'],integer(data.get('year'))
@@ -376,7 +413,7 @@ def post(db,user,path,data,catalog,available):
     writable(db,dep,year) if path!='/api/performance/year' else None
     why=m.reason(data)
     if path=='/api/performance/copy-year':
-        m.require_manager(user,dep);source=integer(data.get('source_year'))
+        m.require_super(user);source=integer(data.get('source_year'))
         if source==year:fail('서로 다른 연도를 지정해 주세요.')
         if db.execute('SELECT 1 FROM performance_plans WHERE department=? AND year=?',(dep,year)).fetchone():fail('대상 연도에 설정이 있습니다. 덮어쓰지 않습니다.',409)
         added=0
@@ -402,15 +439,20 @@ def post(db,user,path,data,catalog,available):
         db.execute('INSERT INTO performance_years VALUES(?,?,?,?,?) ON CONFLICT(department,year) DO UPDATE SET closed=excluded.closed,revision=excluded.revision,report=excluded.report',(dep,year,int(closed),old['revision']+1,dumps(report) if report else None))
         m.audit(db,user['employee_id'],'연도 확정 보관' if closed else '연도 마감 해제',dep,year,old,{'closed':closed},why);return {'ok':True}
     item=indicator_for(db,dep,data.get('indicator_id'),available);key=item['id'];plan=get_plan(db,dep,year,item)
-    if path=='/api/performance/plan':
-        m.require_manager(user,dep)
+    if path in ('/api/performance/plan','/api/performance/schedule'):
+        if path.endswith('/plan'):m.require_super(user)
+        else:m.require_manager(user,dep)
         if data.get('revision')!=plan['revision']:fail('지표 설정이 변경되었습니다. 다시 조회해 주세요.',409)
-        definition=validate_plan(db,dep,year,item,data.get('definition',{}))
+        if path.endswith('/schedule'):
+            if not plan['configured']:fail('수퍼관리자가 먼저 지표 기준을 확정해야 합니다.',409)
+            proposed={**plan,'schedule':data.get('schedule'),'due_days':data.get('due_days',plan['due_days'])}
+        else:proposed=data.get('definition',{})
+        definition=validate_plan(db,dep,year,item,proposed)
         legacy=db.execute('SELECT month FROM monthly_actuals WHERE department_id=? AND year=? AND indicator_id=? ORDER BY month DESC LIMIT 1',(dep,year,key)).fetchone()
         if legacy and day(definition['start'])<=date(year,legacy['month'],calendar.monthrange(year,legacy['month'])[1]):fail('이전 월별 실적이 있습니다. 마지막 기록 월의 다음 달부터 새 관리기간을 시작해 주세요.',409)
         db.execute('INSERT INTO performance_plans VALUES(?,?,?,?,?) ON CONFLICT(department,year,indicator) DO UPDATE SET definition=excluded.definition,revision=excluded.revision',(dep,year,key,dumps(definition),plan['revision']+1))
         m.audit(db,user['employee_id'],'지표 관리주기·산식 설정',dep,f'{year}:{key}',plan,definition,why);return {'ok':True}
-    if not plan['configured']:fail('관리자가 먼저 해당 지표의 관리주기·세부항목을 설정해야 합니다.',409)
+    if not plan['configured']:fail('수퍼관리자가 먼저 공식 목표·산식을 확정해야 합니다.',409)
     if path=='/api/performance/preview':
         source=plan
         if data.get('record_id'):
@@ -449,7 +491,7 @@ def post(db,user,path,data,catalog,available):
         if not isinstance(closed,bool):fail('마감 상태를 확인해 주세요.')
         if closed:
             rows=list(db.execute('SELECT state,employee FROM performance_records WHERE department=? AND year=? AND indicator=? AND start=? AND end=?',(dep,year,key,p['start'],p['end'])))
-            expected={person['employee_id'] for person in db.execute("SELECT employee_id,indicators FROM users WHERE department_id=? AND account_status='active'",(dep,)) if key in json.loads(person['indicators'])}
+            expected={person['employee_id'] for person in db.execute("SELECT employee_id,indicators FROM users WHERE department_id=? AND account_status='active' AND assignment_confirmed=1",(dep,)) if key in json.loads(person['indicators'])}
             if not rows or any(r['state']!='approved' for r in rows) or not expected.issubset({r['employee'] for r in rows}):fail('모든 현재 담당자의 실적을 확인·확정한 후 마감해 주세요.',409)
         db.execute('INSERT INTO performance_locks VALUES(?,?,?,?,?,?,?) ON CONFLICT(department,year,indicator,start,end) DO UPDATE SET closed=excluded.closed,revision=excluded.revision',(dep,year,key,p['start'],p['end'],int(closed),old['revision']+1))
         m.audit(db,user['employee_id'],'지표 기간 마감' if closed else '지표 기간 마감 해제',dep,f"{year}:{key}:{p['start']}",old,{'closed':closed},why);return {'ok':True}
@@ -462,6 +504,12 @@ def post(db,user,path,data,catalog,available):
     if data.get('revision')!=(r['revision'] if r else 0):fail('실적이 변경되었습니다. 다시 조회해 주세요.',409)
     if lock_state(db,dep,year,key,p)['closed']:fail('마감된 기간입니다.',409)
     if path=='/api/performance/record':
+        if not r:
+            import office
+            office.guard_period(db,dep,year,p['start'])
+        if not r or not manager(user):
+            import office
+            office.assignment(db,person,dep,key)
         if (not r or not manager(user)) and (person['department_id']!=dep or key not in json.loads(person['indicators']) or person['account_status']!='active'):fail('현재 소속의 활성 담당자만 새 실적을 입력할 수 있습니다.',403)
         if r:record_access(db,user,r['id'],catalog,True)
         definition=plan if not r or data.get('rebase') is True else json.loads(r['definition'])
@@ -470,6 +518,8 @@ def post(db,user,path,data,catalog,available):
         if status not in progress.STATUSES:fail('진행상태를 확인해 주세요.')
         db.execute('INSERT INTO performance_records(department,year,indicator,employee,start,end,cadence,definition,values_json,narrative,plan,status,state,revision,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,?) ON CONFLICT(department,year,indicator,employee,start,end) DO UPDATE SET definition=excluded.definition,values_json=excluded.values_json,narrative=excluded.narrative,plan=excluded.plan,status=excluded.status,state=\'draft\',revision=performance_records.revision+1,updated_at=excluded.updated_at',(dep,year,key,owner,p['start'],p['end'],p['cadence'],dumps(definition),dumps(values),narrative,future,status,'draft',m.stamp()))
     elif path=='/api/performance/transition':
+        import office
+        if r:office.guard(db,'periodic',r['id'])
         if not r:fail('먼저 실적을 저장해 주세요.',409)
         action=data.get('action');state=r['state']
         transitions={'submit':(('draft','returned'),'submitted'),'submit_on_behalf':(('draft','returned'),'submitted'),'approve':(('submitted',),'approved'),'return':(('submitted','approved'),'returned')}
@@ -478,6 +528,7 @@ def post(db,user,path,data,catalog,available):
         elif r['employee']!=user['employee_id']:fail('실적 제출은 작성자 본인이 수행합니다.',403)
         definition=json.loads(r['definition'])
         if action in ('submit','submit_on_behalf'):
+            if action=='submit':office.assignment(db,user,dep,key)
             if day(r['start'])>datetime.now(timezone(timedelta(hours=9))).date():fail('아직 시작하지 않은 기간은 제출할 수 없습니다.')
             calculate(definition,json.loads(r['values_json']),True)
             if definition['mode']=='text' and not r['narrative'].strip():fail('보고서 내용을 입력한 후 제출해 주세요.')
@@ -563,21 +614,17 @@ def expected_percent(plan,as_of):
     return fraction*100
 
 
-def monitoring(plan,records,as_of):
-    pace=expected_percent(plan,as_of);latest=max((r for r in records if r['start']<=as_of),key=lambda r:(r['end'],r['updated_at'],r['id']),default=None)
-    code='pending';reason='지표 관리기준을 설정해 주세요.'
-    if plan['configured']:
-        if as_of<plan['start']:reason='관리기간 시작 전입니다.'
-        elif latest is None:code='risk' if as_of>=plan['end'] else 'warning';reason='아직 실적이 입력되지 않았습니다.'
-        elif plan['mode']=='text':
-            code='good' if latest['status']=='완료' else 'risk' if as_of>=plan['end'] else 'warning';reason='서술형은 진행상태와 제출 마감으로 확인합니다.'
-        else:
-            rate=calculate(json.loads(latest['definition']),json.loads(latest['values_json']))['percent']
-            if rate is None:reason='세부 실적 입력을 완료해 주세요.'
-            elif dec(rate)>=100 or dec(rate)>=pace:code='good';reason='현재 계획 이상으로 진행하고 있습니다.'
-            elif as_of>=plan['end'] or dec(rate)<pace*Decimal('.8'):code='risk';reason='현재 계획의 80% 미만이거나 마감 목표에 미달합니다.'
-            else:code='warning';reason='현재 계획보다 지연되고 있습니다.'
-    return {'code':code,'label':{'pending':'판정 대기','good':'양호','warning':'경고','risk':'위험'}[code],'reason':reason,'expected_percent':fmt(pace)}
+def numeric_totals(plan,records,as_of,owner=None):
+    visible=[r for r in records if r['start']<=as_of and (owner is None or r['employee']==owner)]
+    definition={**plan}
+    if owner is not None:definition.update(aggregation='representative',representative=owner)
+    # Stored data totals are separate from officially approved aggregation.
+    result=aggregate(definition,[{**r,'state':'approved'} for r in visible])
+    calc=result.get('calculation') or {}
+    return {'score':calc.get('score'),'percent':calc.get('percent'),'effective_weight':calc.get('effective_weight',plan['weight']),
+            'values':result.get('values',{}),'fully_excluded':calc.get('fully_excluded',False),'period_count':len({(r['start'],r['end']) for r in visible}),
+            'basis':'저장 실적 기준 (미확정 포함)','reason':result.get('reason',''),'ready':result['ready'],
+            'submitted_count':sum(r['state']=='submitted' for r in visible),'approved_count':sum(r['state']=='approved' for r in visible)}
 
 
 def dashboard_item(db,user,year,month,indicator,as_of):
@@ -590,19 +637,21 @@ def dashboard_item(db,user,year,month,indicator,as_of):
     history=[]
     for mm in range(1,12):
         matching=[r for r in records if day(r['end']).month==mm];r=matching[-1] if matching else None
-        calculation=calculate(json.loads(r['definition']),json.loads(r['values_json'])) if r else {}
-        history.append({'month':mm,'date':min(dashboard.month_end(year,mm),as_of).isoformat() if mm<=month else dashboard.month_end(year,mm).isoformat(),
-                        'present':bool(r),'actual':calculation.get('score'),'percent':calculation.get('percent'),'status':r['status'] if r else None,
-                        'target':json.loads(r['definition'])['weight'] if r else None,'unit':'점','narrative':r['narrative'][:280] if r else ''})
-    calculation=calculate(json.loads(latest['definition']),json.loads(latest['values_json'])) if latest else {}
+        cutoff=min(dashboard.month_end(year,mm),as_of)
+        totals=numeric_totals(plan,records,cutoff.isoformat(),user['employee_id']) if cutoff.year==year else {}
+        history.append({'month':mm,'date':cutoff.isoformat() if mm<=month else dashboard.month_end(year,mm).isoformat(),
+                        'present':bool(r),'actual':totals.get('score') if mm<=month else None,'percent':totals.get('percent') if mm<=month else None,'status':r['status'] if r else None,
+                        'target':totals.get('effective_weight',plan['weight']),'unit':'점','narrative':r['narrative'][:280] if r else ''})
+    totals=numeric_totals(plan,records,as_of.isoformat(),user['employee_id'])
+    calculation={'score':totals['score'],'percent':totals['percent']}
     try:window=period(plan,as_of.isoformat())
     except m.APIError:window=None
     current=next((r for r in reversed(records) if window and r['start']==window['start'] and r['end']==window['end']),None)
     filled=bool(current and (current['narrative'].strip() if plan['mode']=='text' else calculate(json.loads(current['definition']),json.loads(current['values_json']))['score'] is not None))
-    input_state='입력완료' if filled else '임시저장' if current else '미입력';health=monitoring(plan,records,as_of.isoformat())
-    settings={'target':plan['weight'] if plan['mode']=='numeric' else None,'weight':plan['weight'],'unit':'점','entry_mode':plan['mode'],'direction':'higher','dashboard_curve':plan['curve']}
+    input_state='입력완료' if filled else '임시저장' if current else '미입력'
+    settings={'target':totals['effective_weight'] if plan['mode']=='numeric' else None,'weight':plan['weight'],'unit':'점','entry_mode':plan['mode'],'direction':'higher','dashboard_curve':plan['curve']}
     files=db.execute('SELECT COUNT(*) FROM performance_files WHERE record_id=? AND deleted_at IS NULL',(latest['id'],)).fetchone()[0] if latest else 0
-    return {'indicator':indicator,'settings':settings,'health':health,'achievement_percent':calculation.get('percent'),'expected_percent':health['expected_percent'],
+    return {'indicator':indicator,'settings':settings,'totals':totals,'achievement_percent':calculation.get('percent'),'expected_percent':fmt(expected_percent(plan,as_of.isoformat())),
             'curve_label':{'linear':'균등 진행','late':'연말 집중','milestones':'중간목표'}[plan['curve']],
             'actual':calculation.get('score'),'source_month':day(latest['end']).month if latest else None,'status':latest['status'] if latest else '미착수',
             'input_state':input_state,'current_month_missing':not filled,'future_plan':latest['plan'][:500] if latest else '',

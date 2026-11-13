@@ -19,23 +19,8 @@ class DashboardCriteria(unittest.TestCase):
         self.assertEqual(dashboard.expected(date(2026,10,31),2026,'late'),65)
         self.assertEqual(dashboard.expected(date(2026,11,30),2026,'late'),100)
 
-    def test_thresholds_and_deadline(self):
-        config={'entry_mode':'numeric','target':'100','dashboard_curve':'linear'}
-        day=date(2026,7,1);pace=dashboard.expected(day,2026)
-        code=lambda value,when=day:dashboard.health(config,value,'진행중',True,when,2026)['code']
-        self.assertEqual(code(pace),'good')
-        self.assertEqual(code(pace*Decimal('.8')),'warning')
-        self.assertEqual(code(pace*Decimal('.79')),'risk')
-        self.assertEqual(code('99.99',date(2026,11,30)),'risk')
-        self.assertEqual(code('100',date(2026,11,30)),'good')
-        self.assertEqual(dashboard.health(config,None,None,False,date(2026,11,30),2026)['code'],'risk')
-        self.assertEqual(dashboard.health({**config,'target':None},None,None,False,day,2026)['code'],'pending')
-        self.assertEqual(dashboard.health({**config,'dashboard_curve':'late'},None,None,False,date(2026,3,31),2026)['code'],'good')
-
-    def test_text_has_status_based_health(self):
-        config={'entry_mode':'text'}
-        for status,when,want in [('진행중',date(2026,6,30),'good'),('미착수',date(2026,10,31),'risk'),('진행중',date(2026,11,9),'warning'),('진행중',date(2026,11,30),'risk'),('완료',date(2026,11,30),'good')]:
-            self.assertEqual(dashboard.health(config,None,status,True,when,2026)['code'],want)
+    def test_automatic_judgment_removed(self):
+        self.assertFalse(hasattr(dashboard,'health'))
 
 
 class DashboardFlow(unittest.TestCase):
@@ -46,7 +31,7 @@ class DashboardFlow(unittest.TestCase):
     post=test_management.ManagementFlow.post
 
     def configure(self,**values):
-        self.cookie=self.manager
+        self.cookie=self.super_cookie
         status,result=self.post('/api/monthly/settings',{**self.context,'indicator_id':self.ka[0],'revision':0,'target':'100','weight':'5','unit':'건','entry_mode':'numeric','direction':'higher','reason':'대시보드 기준 설정',**values})
         self.assertEqual(status,200,result)
 
@@ -99,18 +84,18 @@ class DashboardFlow(unittest.TestCase):
     def test_missing_goal_and_text_are_not_fake_percentages(self):
         self.configure(target=None);self.save()
         item=self.metric(self.report());self.assertIsNone(item['achievement_percent'])
-        self.assertEqual(item['health']['code'],'pending');self.assertEqual(item['graph_mode'],'actual')
+        self.assertNotIn('health',item);self.assertEqual(item['graph_mode'],'actual')
         self.cookie=self.manager
         self.configure(indicator_id=self.ka[1],entry_mode='text',target=None)
         self.save(indicator_id=self.ka[1],value='',status='완료',narrative='성과 보고서 제출')
         item=next(x for x in self.report()['metrics'] if x['indicator']['id']==self.ka[1])
         self.assertEqual(item['graph_mode'],'status');self.assertIsNone(item['achievement_percent'])
-        self.assertEqual(item['health']['code'],'good')
+        self.assertNotIn('health',item)
 
     def test_curve_preserved_when_existing_edit_omits_field(self):
         self.configure(dashboard_curve='late');self.configure(revision=1,target='200')
         self.assertEqual(self.metric(self.report())['settings']['dashboard_curve'],'late')
-        self.cookie=self.manager
+        self.cookie=self.super_cookie
         status,_=self.post('/api/monthly/settings',{**self.context,'indicator_id':self.ka[0],'revision':2,'dashboard_curve':'invalid','reason':'잘못된 계획'})
         self.assertEqual(status,400)
         self.assertEqual(self.metric(self.report())['settings']['dashboard_curve'],'late')

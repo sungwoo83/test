@@ -28,30 +28,6 @@ def expected(day,year,curve='linear'):
     return Decimal(100)
 
 
-def health(config,achievement,status,has_actual,as_of,year):
-    end=date(year,11,30);pace=expected(as_of,year,config.get('dashboard_curve','linear'))
-    def result(code,reason):return {'code':code,'label':{'good':'양호','warning':'경고','risk':'위험','pending':'판정 대기'}[code],'reason':reason}
-    if as_of<date(year,1,1):return result('pending','선택한 평가연도의 시작 전입니다.')
-    if config['entry_mode']=='text':
-        if status=='완료':return result('good','서술형 실적의 진행상태가 완료입니다.')
-        if as_of>=end:return result('risk','제출 마감까지 서술형 실적이 완료되지 않았습니다.')
-        if as_of.month>=10 and status in (None,'미착수'):return result('risk','마감이 가까우나 아직 착수하지 않았습니다.')
-        if status=='진행중' and as_of.month<11:return result('good','현재 진행 중입니다. 서술형은 상태·마감 기준으로 확인합니다.')
-        return result('warning','서술형 실적의 진행상태와 제출 준비를 확인해 주세요.')
-    if config.get('target') in (None,'') or Decimal(str(config['target']))<=0:return result('pending','목표치를 설정하면 시점별 상태를 계산합니다.')
-    if not has_actual:
-        if as_of>=end:return result('risk','제출 마감까지 수치 실적이 입력되지 않았습니다.')
-        if pace==0:return result('good','연말 집중 계획상 실적 진행 예정 시점 전입니다.')
-        return result('warning' if pace<20 else 'risk','수치 실적이 입력되지 않았습니다. 최신 실적을 등록해 주세요.')
-    if achievement is None:return result('pending','계산할 수 없는 실적입니다. 단위·목표·산식을 확인해 주세요.')
-    value=Decimal(achievement)
-    if value>=100:return result('good','설정한 목표를 달성했습니다.')
-    if as_of>=end:return result('risk','제출 마감 기준 목표에 미달합니다.')
-    if value>=pace:return result('good','현재 시점의 계획 이상으로 진행하고 있습니다.')
-    if value>=pace*Decimal('.8'):return result('warning','시점 계획보다 지연되고 있습니다. 향후계획을 점검해 주세요.')
-    return result('risk','현재 달성률이 시점 계획의 80% 미만입니다. 집중 관리가 필요합니다.')
-
-
 def report(db,user,params,catalog,available,today=None):
     year,month=m.period_args(params)
     if month>11:raise m.APIError(400,'대시보드는 1~11월 성과제출 기간을 조회합니다.')
@@ -94,14 +70,13 @@ def report(db,user,params,catalog,available,today=None):
             percent=progress.achievement(synthetic)['percent']
         state_record=selected or latest_record;status=state_record['status'] if state_record else None
         actual_present=latest_value is not None
-        state=health(config,percent,status,actual_present,as_of,year)
         planned=[{'month':mm,'date':month_end(year,mm).isoformat(),'percent':rounded(expected(month_end(year,mm),year,config['dashboard_curve']))} for mm in range(1,12)]
         if selected:
             filled=bool(selected['narrative'].strip()) if config['entry_mode']=='text' else selected['actual']!='' or selected['adjusted'] is not None
             input_state='입력완료' if filled else '임시저장'
         else:input_state='미입력'
         files=db.execute('SELECT COUNT(*) FROM evidence_files WHERE record_id=? AND deleted_at IS NULL',(state_record['id'],)).fetchone()[0] if state_record else 0
-        metrics.append({'indicator':indicator,'settings':config,'health':state,'achievement_percent':percent,'expected_percent':rounded(expected(as_of,year,config['dashboard_curve'])),'curve_label':CURVES[config['dashboard_curve']],
+        metrics.append({'indicator':indicator,'settings':config,'achievement_percent':percent,'expected_percent':rounded(expected(as_of,year,config['dashboard_curve'])),'curve_label':CURVES[config['dashboard_curve']],
             'actual':latest_value,'source_month':source_month,'status':status or '미착수','input_state':input_state,'current_month_missing':input_state!='입력완료',
             'future_plan':state_record['future_plan'][:500] if state_record else '', 'narrative':state_record['narrative'][:280] if state_record else '',
             'updated_at':state_record['updated_at'] if state_record else None,'evidence_count':files,'history':history,'planned':planned,
@@ -109,8 +84,7 @@ def report(db,user,params,catalog,available,today=None):
     rates=[Decimal(x['achievement_percent']) for x in metrics if x['achievement_percent'] is not None]
     summary={'indicator_count':len(metrics),'average_achievement':rounded(sum(rates)/len(rates)) if rates else None,'input_count':sum(x['input_state']=='입력완료' for x in metrics),
         'draft_count':sum(x['input_state']=='임시저장' for x in metrics),'missing_count':sum(x['input_state']=='미입력' for x in metrics),'completed_count':sum(x['status']=='완료' for x in metrics)}
-    for code in ('good','warning','risk','pending'):summary[code+'_count']=sum(x['health']['code']==code for x in metrics)
     return {'year':year,'month':month,'as_of':as_of.isoformat(),'today':today.isoformat(),'deadline':end.isoformat(),'remaining_days':max(0,(end-as_of).days),
         'period_started':as_of>=date(year,1,1),'period_ended':as_of>=end,'elapsed_percent':rounded(expected(as_of,year)),
         'department_id':department,'department_name':workplace['name'] if workplace else department,'employee_name':user['display_name'] or user['employee_id'],'summary':summary,'metrics':metrics,
-        'criteria':{'good':'시점 계획 이상 또는 목표 달성','warning':'시점 계획의 80% 이상~100% 미만','risk':'시점 계획의 80% 미만 또는 마감일 목표 미달','pending':'목표 미설정·계산 불가·평가연도 시작 전','note':'진행관리 참고 기준이며 공식 평가점수가 아닙니다. 서술형은 진행상태와 제출 마감으로 판단합니다.'}}
+        'note':'실적·달성률·입력 및 제출 상태만 표시하며 자동 상태 판정을 하지 않습니다.'}

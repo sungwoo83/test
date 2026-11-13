@@ -65,6 +65,7 @@ async function refresh(landing=false) {
 function render() {
   $('auth').hidden = true; $('home').hidden = false;
   const u = current.user, d = dept(u.department_id), items = indicators(u.department_id).filter(k => u.indicators.includes(k.id));
+  $('assignment-notice').hidden=Boolean(u.assignment_confirmed);
   $('header-employee').textContent = (u.display_name?u.display_name+' · ':'')+'사번 '+u.employee_id;
   $('department-name').textContent = d.name; $('department-group').textContent = d.group+' · 사번 '+u.employee_id;
   $('total-count').textContent = items.length;
@@ -204,9 +205,9 @@ async function loadMonthly(){
       const plans=node('td','plan-cell',r?.future_plan||'—'),files=node('td');
       const evidenceButton=node('button','secondary',`증빙 ${r?.attachments?.length||0}개`);evidenceButton.type='button';evidenceButton.disabled=!r;evidenceButton.onclick=()=>openEvidence(item);files.append(evidenceButton);
       const actions=node('td');
-      const save=node('button','secondary','입력·수정');save.type='button';save.disabled=closed || r?.adjusted!=null;save.onclick=()=>openActual(item,false);actions.append(save);
+      const save=node('button','secondary','입력·수정');save.type='button';save.disabled=closed || r?.adjusted!=null || !current.user.assignment_confirmed;save.onclick=()=>openActual(item,false);actions.append(save);
       if(isManager()){
-        const setting=node('button','secondary','목표·가중치');setting.type='button';setting.disabled=closed;setting.onclick=()=>openSettings(item);actions.append(setting);
+        if(current.user.role==='superadmin'){const setting=node('button','secondary','목표·가중치');setting.type='button';setting.disabled=closed;setting.onclick=()=>openSettings(item);actions.append(setting);}
         if(r&&config.entry_mode!=='text'){const adjust=node('button','secondary','조정');adjust.type='button';adjust.disabled=closed;adjust.onclick=()=>openActual(item,true);actions.append(adjust);}
       }
       row.append(name,goal,actual,rate,status,plans,files,actions);$('monthly-rows').append(row);
@@ -274,6 +275,7 @@ function openActual(item,adjust,scope=monthly.context){
   }
 }
 function openSettings(item,scope=monthly.context){
+  if(current.user.role!=='superadmin')return;
   const config=item.settings,context={...scope,department_id:item.department_id||scope.department_id,indicator_id:item.indicator.id,revision:config.revision};
   action('지표 목표·가중치 설정',`${departmentLabel(context.department_id)} · ${context.year}년 · ${item.indicator.name}. 같은 연도의 미마감 실적에 반영하며 마감월은 보존합니다.`,'/api/monthly/settings',()=>{
     const refView=manualReference(config);if(refView){refView.open=true;$('action-fields').append(refView);}
@@ -484,7 +486,7 @@ async function loadReview(){
       const actions=node('td');
       const edit=node('button','secondary',r?'수정':'대리 입력');edit.type='button';edit.disabled=closed;edit.onclick=()=>openActual(item,false,scope);actions.append(edit);
       if(r){const files=node('button','secondary',`증빙 ${r.attachments.length}개`);files.type='button';files.onclick=()=>openEvidence(item,scope);actions.append(files);}
-      const goal=node('button','secondary','목표·가중치');goal.type='button';goal.disabled=closed;goal.onclick=()=>openSettings(item,scope);actions.append(goal);
+      if(current.user.role==='superadmin'){const goal=node('button','secondary','목표·가중치');goal.type='button';goal.disabled=closed;goal.onclick=()=>openSettings(item,scope);actions.append(goal);}
       if(r&&config.entry_mode!=='text'){const adjust=node('button','secondary','수치 조정');adjust.type='button';adjust.disabled=closed;adjust.onclick=()=>openActual(item,true,scope);actions.append(adjust);}
       row.append(node('td','',item.department_name),person,metric,node('td','',item.entry_state),actual,node('td','',r?r.achievement.label:'—'),node('td','',r?.status||'미착수'),node('td','plan-cell',r?.future_plan||'—'),actions);$('review-detail-rows').append(row);
     }

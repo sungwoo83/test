@@ -16,7 +16,7 @@ class EntryFlow(unittest.TestCase):
     post=test_management.ManagementFlow.post
 
     def configure(self,**values):
-        self.cookie=self.manager
+        self.cookie=self.super_cookie
         payload={**self.context,'indicator_id':self.ka[0],'revision':0,'target':'10','weight':'5','unit':'건','entry_mode':'numeric','direction':'higher','reason':'목표 기준 설정',**values}
         return self.post('/api/monthly/settings',payload)
     def save(self,**values):
@@ -41,7 +41,8 @@ class EntryFlow(unittest.TestCase):
     def test_goal_weight_permissions_and_revision(self):
         self.assertEqual(self.configure()[0],200)
         self.assertEqual(self.configure()[0],409)
-        self.assertEqual(self.configure(department_id=self.b['id'],indicator_id=self.kb[0])[0],403)
+        self.cookie=self.manager
+        self.assertEqual(self.post('/api/monthly/settings',{**self.context,'indicator_id':self.ka[0],'revision':1,'target':'20','reason':'관리자 목표 수정 시도'})[0],403)
         self.cookie=self.worker
         self.assertEqual(self.post('/api/monthly/settings',{**self.context,'indicator_id':self.ka[0],'revision':1,'target':'20','reason':'권한 확인'})[0],403)
         item=self.monthly();self.assertEqual(item['settings']['weight'],'5')

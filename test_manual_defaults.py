@@ -68,7 +68,7 @@ class ManualDefaults(unittest.TestCase):
 
     def test_editor_retains_reference_and_new_snapshot_supports_score_input(self):
         with app.connect() as db:
-            ids=['KPI-025'];db.execute('INSERT INTO users(employee_id,password_hash,department_id,indicators,created_at,role,admin_department_id) VALUES(?,?,?,?,?,?,?)',('synthetic-manager','unused','ORG-004',json.dumps(ids),app.now(),'admin','ORG-004'))
+            ids=['KPI-025'];db.execute('INSERT INTO users(employee_id,password_hash,department_id,indicators,created_at,role,admin_department_id) VALUES(?,?,?,?,?,?,?)',('synthetic-manager','unused','ORG-004',json.dumps(ids),app.now(),'superadmin','ORG-004'))
             actor=db.execute("SELECT * FROM users WHERE employee_id='synthetic-manager'").fetchone()
             scope={'department_id':'ORG-004','year':2026,'month':11,'indicator_id':ids[0]}
             management.post(db,actor,'/api/monthly/actual',{**scope,'revision':0,'value':'15','status':'진행중','reason':'환산점수 입력'},management.effective_catalog(db,app.CATALOG),app.available)

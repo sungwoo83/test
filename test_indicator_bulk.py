@@ -101,7 +101,7 @@ class BulkFlow(unittest.TestCase):
         self.assertEqual(self.apply(preview['token'])[0],409)
 
     def test_closed_month_kept_and_percent_cells_supported(self):
-        self.cookie=self.manager
+        self.cookie=self.super_cookie
         self.post('/api/monthly/settings',{**self.context,'indicator_id':self.ka[0],'revision':0,'target':'10','weight':'5','unit':'%','entry_mode':'numeric','direction':'higher','reason':'목표 등록'})
         self.cookie=self.worker;self.post('/api/monthly/actual',{**self.context,'indicator_id':self.ka[0],'revision':0,'value':'5','reason':'실적 등록'})
         self.cookie=self.manager;self.post('/api/monthly/period',{**self.context,'status':'closed','revision':0,'reason':'월마감'})
