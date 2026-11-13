@@ -81,6 +81,7 @@ function render() {
 function displayPage(navigate=false){
   if(!current)return;
   const routes={
+    '#performance':{view:'performance-view',nav:'performance-nav',label:'통합 성과관리'},
     '#dashboard':{view:'dashboard-view',nav:'dashboard-nav',label:'성과 대시보드'},
     '#monthly-panel':{view:'monthly-view',nav:'monthly-nav',label:'월별 실적 관리'},
     '#review':{view:'review-view',nav:'review-nav',label:'월별 실적 확인'},
@@ -91,10 +92,10 @@ function displayPage(navigate=false){
   let route=routes[location.hash]||(location.hash==='#home'?homeRoute:routes['#dashboard']);
   if(['admin-view','roles-view'].includes(route.view)&&current.user.role!=='superadmin')route=homeRoute;
   if(route.view==='review-view'&&!isManager())route=homeRoute;
-  for(const id of ['dashboard-view','work-view','monthly-view','review-view','admin-view','roles-view'])$(id).hidden=id!==route.view;
+  for(const id of ['performance-view','dashboard-view','work-view','monthly-view','review-view','admin-view','roles-view'])$(id).hidden=id!==route.view;
   document.querySelector('.breadcrumb').textContent='/ '+route.label;
   document.title=route.label+' | 내부평가 성과관리';
-  for(const id of ['dashboard-nav','work-nav','monthly-nav','review-nav','super-nav','roles-nav']){
+  for(const id of ['performance-nav','dashboard-nav','work-nav','monthly-nav','review-nav','super-nav','roles-nav']){
     $(id).classList.toggle('nav-active',id===route.nav);
     if(id===route.nav)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');
   }
@@ -104,7 +105,7 @@ function displayPage(navigate=false){
     window.scrollTo({top:0});
   }
 }
-window.addEventListener('hashchange',()=>{displayPage(true);if(current&&location.hash==='#dashboard')loadDashboard();});
+window.addEventListener('hashchange',()=>{displayPage(true);if(current&&location.hash==='#dashboard')loadDashboard();if(current&&location.hash==='#performance')loadPerformance();});
 
 function openProfile(title) {
   $('dialog-title').textContent = title; $('profile-error').textContent = '';
@@ -169,7 +170,7 @@ async function setupManagement(){
     $('monthly-month').value=localParts.find(p=>p.type==='month').value;
     $('monthly-year').value=localParts.find(p=>p.type==='year').value;
   }
-  await loadMonthly();await setupDashboard();
+  await loadMonthly();await setupDashboard();setupPerformance();
   if(u.role==='superadmin'){await loadSuper();await loadRoleControl();}
   if(isManager()){await setupReview();await loadAudit();}
 }
@@ -429,6 +430,7 @@ $('evidence-form').addEventListener('submit',async event=>{
 
 let reviewData=null,reviewSequence=0;
 function clearSessionViews(){
+  if(typeof clearPerformance==='function')clearPerformance();
   clearDashboard();monthly=null;monthlySequence++;reviewData=null;reviewSequence++;masterItems=[];actionRequest=null;evidenceRecord=null;
   for(const id of ['review-place-rows','review-employee-rows','review-detail-rows','monthly-rows','user-rows','audit-rows','my-indicators','action-fields','evidence-list','master-rows','bulk-change-rows'])$(id).replaceChildren();
   $('review-nav').hidden=$('super-nav').hidden=$('roles-nav').hidden=true;clearBulkPreview();$('download-review').disabled=true;

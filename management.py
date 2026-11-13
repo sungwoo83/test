@@ -151,6 +151,13 @@ def indicator_definition(data):
 
 def post(db,user,path,data,catalog,available):
     actor=user['employee_id']
+    if path.startswith('/api/monthly/'):
+        import performance,calendar
+        department=data.get('department_id');year,month=period_args(data);performance.writable(db,department,year)
+        key=data.get('indicator_id')
+        rows=db.execute('SELECT definition FROM performance_plans WHERE department=? AND year=? AND (? IS NULL OR indicator=?)',(department,year,key,key)).fetchall()
+        first=f'{year}-{month:02d}-01';last=f'{year}-{month:02d}-{calendar.monthrange(year,month)[1]:02d}'
+        if any(json.loads(r[0])['start']<=last and json.loads(r[0])['end']>=first for r in rows):raise APIError(409,'해당 기간은 통합 성과관리에서 관리합니다. 이전 월별 화면은 조회에 사용해 주세요.')
     if path=='/api/admin/indicators/import-apply':
         import indicator_bulk
         return indicator_bulk.apply(db,user,data,catalog,available)
@@ -170,7 +177,7 @@ def post(db,user,path,data,catalog,available):
             raise APIError(400,'관리할 평가대상 부서를 지정해 주세요.')
         if role=='superadmin' and not can_be_superadmin(target['department_id'], catalog):
             raise APIError(400,'수퍼관리자는 성과혁신실 또는 AI정보융합실 소속 계정에 지정해 주세요.')
-        if target['role']=='superadmin' and role!='superadmin' and db.execute("SELECT COUNT(*) FROM users WHERE role='superadmin'").fetchone()[0]<=1:
+        if target['role']=='superadmin' and target['account_status']=='active' and role!='superadmin' and db.execute("SELECT COUNT(*) FROM users WHERE role='superadmin' AND account_status='active'").fetchone()[0]<=1:
             raise APIError(409,'마지막 수퍼관리자는 해제할 수 없습니다.')
         before={k:target[k] for k in ('role','admin_department_id')};after={'role':role,'admin_department_id':department}
         db.execute('UPDATE users SET role=?,admin_department_id=? WHERE employee_id=?',(role,department,target['employee_id']))

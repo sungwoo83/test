@@ -58,6 +58,7 @@ function renderMetricCards(){
     numbers.append(actual,rate);card.append(numbers);
     const goal=node('div','metric-goal');goal.append(node('span','',metric.settings.entry_mode==='text'?'완료 상태로 제출':`목표 ${prettyNumber(metric.settings.target)} ${metric.settings.unit||''}`),node('span','',`가중치 ${prettyNumber(metric.settings.weight)}점`));card.append(goal);
     const refView=manualReference(metric.settings);if(refView)card.append(refView);
+    if(metric.source==='periodic')card.append(node('p','notice','통합 실적 · '+(metric.workflow_state?({draft:'임시저장',submitted:'검토대기',returned:'반려',approved:'확정'}[metric.workflow_state]):'미입력')+' · 월별 마지막 기록의 득점률입니다. 주별 상세 이력은 통합 성과관리에서 확인하세요.'));
     const chartCaption=node('div','chart-caption');chartCaption.append(node('span','',metric.graph_mode==='status'?'월별 진행상태':metric.graph_mode==='actual'?'월별 실적 · 목표 미설정':'월별 목표 대비 달성률'),node('small','',metric.graph_mode==='status'?'상태·마감 기준':`${metric.curve_label} · 시점 계획 ${prettyNumber(metric.expected_percent)}%`));card.append(chartCaption);
     const tooltip=node('p','chart-tooltip','그래프의 점에 마우스를 올리거나 눌러 상세 수치를 확인하세요.');tooltip.setAttribute('aria-live','polite');
     card.append(metricChart(metric,data,tooltip),tooltip);
@@ -107,7 +108,11 @@ function metricChart(metric,data,tooltip){
   return svg;
 }
 async function goToDashboardEntry(indicatorId){
-  if(!dashboardData)return;const data=dashboardData;location.hash='#monthly-panel';
+  if(!dashboardData)return;const data=dashboardData;
+  if(indicatorId?data.metrics.some(m=>m.indicator.id===indicatorId&&m.source==='periodic'):data.metrics.some(m=>m.source==='periodic')){
+    $('perf-year').value=data.year;$('perf-date').value=data.as_of;perfTab='own';location.hash='#performance';loadPerformance();return;
+  }
+  location.hash='#monthly-panel';
   $('monthly-year').value=data.year;$('monthly-month').value=data.month;
   if([...$('monthly-department').options].some(o=>o.value===data.department_id))$('monthly-department').value=data.department_id;
   await loadMonthly();if(indicatorId){const item=monthly?.items.find(i=>i.indicator.id===indicatorId);if(item&&monthly.period.status!=='closed')openActual(item,false);else if(monthly?.period.status==='closed')toast('마감된 월입니다. 관리자에게 확인해 주세요.');}
@@ -115,4 +120,4 @@ async function goToDashboardEntry(indicatorId){
 $('dash-reload').onclick=loadDashboard;for(const id of ['dash-year','dash-month'])$(id).onchange=loadDashboard;
 $('dash-enter').onclick=()=>goToDashboardEntry();
 for(const button of document.querySelectorAll('#dash-filters button'))button.onclick=()=>{dashboardFilter=button.dataset.health;renderMetricCards();};
-start();
+

@@ -65,6 +65,8 @@ def enrich_items(db,department,year,items,records):
 def save_settings(db,user,data,catalog,available):
     department=data.get('department_id');m.department_scope(user,department,catalog);m.require_manager(user,department)
     year,month=m.period_args(data)
+    import performance
+    performance.writable(db,department,year)
     if m.period(db,department,year,month)['status']=='closed':raise m.APIError(409,'마감된 월에서는 목표·가중치를 수정할 수 없습니다.')
     indicator=next((k for k in available(department,db) if k['id']==data.get('indicator_id')),None)
     if not indicator:raise m.APIError(400,'해당 부서의 지표를 선택해 주세요.')

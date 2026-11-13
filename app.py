@@ -1,5 +1,7 @@
 """폐쇄망용 직원 설정 모듈. Python 3.11+, 외부 패키지 불필요."""
 import argparse
+import sys
+if __name__=='__main__':sys.modules['app']=sys.modules[__name__]
 import management
 import evidence
 from urllib.parse import urlsplit, parse_qs, quote, unquote
@@ -53,6 +55,8 @@ def initialize():
         management.initialize(db)
         import manual_defaults
         manual_defaults.seed(db, CATALOG)
+        import performance
+        performance.initialize(db)
 
 def now():
     return datetime.now(timezone.utc).isoformat()
@@ -124,13 +128,17 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             token = ''
         digest = hashlib.sha256(token.encode()).hexdigest()
-        return db.execute('SELECT * FROM sessions WHERE token_hash=? AND expires>?', (digest, time.time())).fetchone()
+        return db.execute("SELECT s.* FROM sessions s JOIN users u ON u.employee_id=s.employee_id WHERE s.token_hash=? AND s.expires>? AND u.account_status='active'", (digest, time.time())).fetchone()
 
     def cookie(self, token, age):
         return f'session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={age}' + ('; Secure' if SECURE else '')
 
     def do_GET(self):
         path = self.path.split('?')[0]
+        if path.startswith('/api/performance/files/'):
+            return self.performance_file_download(path)
+        if path=='/api/performance.xlsx':
+            return self.performance_export()
         if path.startswith('/api/evidence/'):
             try:
                 file_id=int(path.rsplit('/',1)[-1])
@@ -183,14 +191,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header('Content-Disposition',f'attachment; filename="{filename}"')
                 self.end_headers();self.wfile.write(body);return
             except management.APIError as exc:return self.reply(exc.status, {'error':str(exc)})
-        if path in ('/api/monthly','/api/review','/api/dashboard') or path.startswith('/api/admin/'):
+        if path in ('/api/monthly','/api/review','/api/dashboard') or path.startswith('/api/admin/') or path.startswith('/api/performance'):
             with connect() as db:
                 session = self.session(db)
                 if not session: return self.reply(401, {'error':'로그인이 필요합니다.'})
                 user = db.execute('SELECT * FROM users WHERE employee_id=?', (session['employee_id'],)).fetchone()
                 params = {k:v[0] for k,v in parse_qs(urlsplit(self.path).query).items()}
                 try:
-                    return self.reply(200, management.get(db,user,path,params,management.effective_catalog(db,CATALOG),available))
+                    if path.startswith('/api/performance'):
+                        import performance
+                        result=performance.get(db,user,path,params,management.effective_catalog(db,CATALOG),available)
+                    else:result=management.get(db,user,path,params,management.effective_catalog(db,CATALOG),available)
+                    return self.reply(200,result)
                 except management.APIError as exc:
                     return self.reply(exc.status, {'error':str(exc)})
         if path == '/api/me':
@@ -201,7 +213,7 @@ class Handler(BaseHTTPRequestHandler):
                 user = db.execute('SELECT * FROM users WHERE employee_id=?', (session['employee_id'],)).fetchone()
                 history = db.execute('SELECT before_json,after_json,changed_at FROM changes WHERE employee_id=? ORDER BY id DESC LIMIT 20', (session['employee_id'],)).fetchall()
                 return self.reply(200, {'user': profile(user), 'csrf': session['csrf'], 'history': [dict(r) for r in history]})
-        files = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'text/javascript; charset=utf-8'), '/dashboard.js': ('dashboard.js','text/javascript; charset=utf-8'), '/knps-logo.svg': ('knps-logo.svg','image/svg+xml'), '/style.css': ('style.css', 'text/css; charset=utf-8')}
+        files = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'text/javascript; charset=utf-8'), '/dashboard.js': ('dashboard.js','text/javascript; charset=utf-8'), '/performance.js':('performance.js','text/javascript; charset=utf-8'), '/knps-logo.svg': ('knps-logo.svg','image/svg+xml'), '/style.css': ('style.css', 'text/css; charset=utf-8')}
         if path not in files:
             return self.reply(404, {'error': '페이지를 찾을 수 없습니다.'})
         name, mime = files[path]
@@ -216,6 +228,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(403, {'error': '허용되지 않은 요청입니다.'})
         if urlsplit(self.path).path=='/api/admin/indicators/import-preview':
             return self.preview_indicator_workbook()
+        if urlsplit(self.path).path=='/api/performance/backup':
+            return self.performance_backup()
+        if urlsplit(self.path).path=='/api/performance/upload':
+            return self.performance_file_upload()
         if urlsplit(self.path).path=='/api/evidence/upload':
             return self.upload_evidence()
         try:
@@ -264,6 +280,8 @@ class Handler(BaseHTTPRequestHandler):
                                 window_start=CASE WHEN ?-window_start>=900 THEN ? ELSE window_start END''', (scope, stamp, stamp, stamp, stamp))
                             db.commit()
                             return self.reply(401, {'error': '사번 또는 비밀번호를 확인해 주세요.'})
+                    account=db.execute('SELECT account_status FROM users WHERE employee_id=?',(employee,)).fetchone()
+                    if account['account_status']!='active':return self.reply(403,{'error':'비활성화된 계정입니다. 관리자에게 문의해 주세요.'})
                     db.execute('DELETE FROM attempts WHERE scope=?', (scopes[0],))
                     db.execute('DELETE FROM sessions WHERE expires<=?', (time.time(),))
                     token = secrets.token_urlsafe(32)
@@ -276,6 +294,13 @@ class Handler(BaseHTTPRequestHandler):
                 if not hmac.compare_digest(str(data.get('csrf', '')), session['csrf']):
                     return self.reply(403, {'error': '세션을 새로고침하고 다시 시도해 주세요.'})
                 user = db.execute('SELECT * FROM users WHERE employee_id=?', (session['employee_id'],)).fetchone()
+                if self.path.startswith('/api/performance'):
+                    import performance
+                    if self.path=='/api/performance/files/delete':
+                        import performance_files
+                        result=performance_files.delete(db,user,data.get('file_id'),CATALOG)
+                    else:result=performance.post(db,user,self.path,data,management.effective_catalog(db,CATALOG),available)
+                    db.commit();return self.reply(200,result)
                 if self.path.startswith('/api/monthly/') or self.path.startswith('/api/admin/') or self.path=='/api/evidence/delete':
                     result = management.post(db,user,self.path,data,management.effective_catalog(db,CATALOG),available)
                     db.commit()
@@ -368,6 +393,82 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError,UnicodeError):self.reply(400, {'error':'평가연도와 XLSX 파일을 확인해 주세요.'})
         except (sqlite3.Error,OSError):self.reply(503, {'error':'파일 검증에 실패했습니다. 다시 시도해 주세요.'})
 
+
+    def performance_backup(self):
+        try:
+            import operations
+            length=int(self.headers.get('Content-Length','0'))
+            if not 0<length<=65536:return self.reply(413,{'error':'요청 크기를 확인해 주세요.'})
+            data=json.loads(self.rfile.read(length))
+            with connect() as db:
+                session=self.session(db)
+                if not session:return self.reply(401,{'error':'로그인이 필요합니다.'})
+                if not hmac.compare_digest(str(data.get('csrf','')),session['csrf']):return self.reply(403,{'error':'세션을 새로고침해 주세요.'})
+                user=db.execute('SELECT * FROM users WHERE employee_id=?',(session['employee_id'],)).fetchone();management.require_super(user);reason=management.reason(data)
+            folder=DB.parent/'backups';folder.mkdir(parents=True,exist_ok=True)
+            name='performance-'+time.strftime('%Y%m%dT%H%M%SZ',time.gmtime())+'-'+secrets.token_hex(4)+'.zip'
+            result=operations.backup(DB,folder/name)
+            with connect() as db:management.audit(db,user['employee_id'],'수동 백업',None,name,None,{'files':result['files']},reason)
+            (folder/'status.json').write_text(json.dumps({'ok':True,'checked_at':time.time()}))
+            return self.reply(200,{'ok':True,'filename':name})
+        except management.APIError as e:self.reply(e.status,{'error':str(e)})
+        except (ValueError,OSError,sqlite3.Error):self.reply(400,{'error':'백업 파일과 저장공간을 확인해 주세요.'})
+
+    def performance_file_download(self,path):
+        try:
+            import performance_files
+            with connect() as db:
+                session=self.session(db)
+                if not session:return self.reply(401,{'error':'로그인이 필요합니다.'})
+                user=db.execute('SELECT * FROM users WHERE employee_id=?',(session['employee_id'],)).fetchone()
+                file,stored=performance_files.download(db,user,int(path.rsplit('/',1)[-1]),CATALOG,DB.parent/'uploads');body=stored.read_bytes()
+            self.send_response(200);self.headers_common('application/octet-stream',len(body));self.send_header('Content-Disposition',"attachment; filename*=UTF-8''"+quote(file['original_name'],safe=''));self.end_headers();self.wfile.write(body)
+        except management.APIError as e:self.reply(e.status,{'error':str(e)})
+        except (ValueError,OSError):self.reply(404,{'error':'증빙파일을 찾을 수 없습니다.'})
+
+    def performance_file_upload(self):
+        created=None
+        try:
+            import performance_files
+            length=int(self.headers.get('Content-Length','0'))
+            if not 0<length<=evidence.MAX_SIZE:return self.reply(413,{'error':'파일당 10MB 이하로 업로드해 주세요.'})
+            if self.headers.get('Content-Type','').split(';')[0]!='application/octet-stream':return self.reply(415,{'error':'파일 전송 형식을 확인해 주세요.'})
+            with connect() as db:
+                db.execute('BEGIN IMMEDIATE');session=self.session(db)
+                if not session:return self.reply(401,{'error':'로그인이 필요합니다.'})
+                if not hmac.compare_digest(self.headers.get('X-CSRF-Token',''),session['csrf']):return self.reply(403,{'error':'세션을 새로고침해 주세요.'})
+                user=db.execute('SELECT * FROM users WHERE employee_id=?',(session['employee_id'],)).fetchone();params=parse_qs(urlsplit(self.path).query);key=int(params.get('record_id',[''])[0])
+                body=self.rfile.read(length)
+                if len(body)!=length:raise management.APIError(400,'파일 전송이 완료되지 않았습니다.')
+                result=performance_files.upload(db,user,key,unquote(self.headers.get('X-File-Name','')),body,CATALOG,DB.parent/'uploads')
+                stored=db.execute('SELECT storage_name FROM performance_files WHERE id=?',(result['file']['id'],)).fetchone()[0];created=DB.parent/'uploads'/stored;db.commit();created=None
+                return self.reply(200,result)
+        except management.APIError as e:self.reply(e.status,{'error':str(e)})
+        except (ValueError,OSError,sqlite3.Error):self.reply(400,{'error':'파일 또는 저장 공간을 확인해 주세요.'})
+        finally:
+            if created:created.unlink(missing_ok=True)
+
+    def performance_export(self):
+        try:
+            import performance,review
+            with connect() as db:
+                session=self.session(db)
+                if not session:return self.reply(401,{'error':'로그인이 필요합니다.'})
+                user=db.execute('SELECT * FROM users WHERE employee_id=?',(session['employee_id'],)).fetchone();params={k:v[0] for k,v in parse_qs(urlsplit(self.path).query).items()}
+                dep,year=performance.scope(db,user,params,CATALOG);management.require_manager(user,dep)
+                if params.get('kind')=='audit':
+                    events=performance.get(db,user,'/api/performance/audit',params,CATALOG,available)['events'];rows=[['시각','처리자','작업','대상','사유','변경 전','변경 후']]+[[r[k] for k in ('created_at','actor','action','target','reason','before_json','after_json')] for r in events];sheets=[('변경이력',rows)]
+                elif params.get('kind')=='annual':
+                    report=performance.annual(db,user,dep,year,management.effective_catalog(db,CATALOG),available);rows=[['지표','배점','득점','평가자','등급','가감점','결측','근거']]+[[r['indicator']['name'],r['definition']['weight'],r['score'],r['rating']['evaluator'],r['rating']['grade'],r['rating']['adjustment'],r['rating']['excluded'],r['reason']] for r in report['items']];rows.append(['합계',report['maximum'],report['score']]);sheets=[('최종평가',rows)]
+                else:
+                    report=performance.get(db,user,'/api/performance',{**params,'view':'review'},management.effective_catalog(db,CATALOG),available);rows=[['지표','사번','시작','종료','주기','진행상태','제출상태','득점','실적','내용','향후계획','검토사유']]
+                    for item in report['items']:
+                        for r in item['history']:rows.append([item['indicator']['name'],r['employee'],r['start'],r['end'],r['cadence'],r['status'],r['state'],r['calculation']['score'],json.dumps(r['values'],ensure_ascii=False),r['narrative'],r['plan'],r['feedback']])
+                    sheets=[('기간별실적',rows)]
+                body=review.xlsx(sheets)
+            self.send_response(200);self.headers_common('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',len(body));self.send_header('Content-Disposition','attachment; filename="performance.xlsx"');self.end_headers();self.wfile.write(body)
+        except management.APIError as e:self.reply(e.status,{'error':str(e)})
+
 def main():
     global DB, SECURE
     parser = argparse.ArgumentParser()
@@ -375,12 +476,16 @@ def main():
     parser.add_argument('--port', type=int, default=8080)
     parser.add_argument('--db', type=Path, default=DB)
     parser.add_argument('--cert', type=Path)
+    parser.add_argument('--no-auto-backup', action='store_true')
     parser.add_argument('--key', type=Path)
     args = parser.parse_args()
     if bool(args.cert) != bool(args.key):
         parser.error('--cert와 --key를 함께 지정해 주세요.')
     DB = args.db
     initialize()
+    if not args.no_auto_backup:
+        import operations
+        operations.start_service(DB)
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     if args.cert:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

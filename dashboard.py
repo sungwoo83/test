@@ -66,6 +66,10 @@ def report(db,user,params,catalog,available,today=None):
         if row['month']<=month and date(year,row['month'],1)<=as_of:records[(row['indicator_id'],row['month'])]=dict(row)
     metrics=[]
     for indicator in indicators:
+        import performance
+        structured=performance.dashboard_item(db,user,year,month,indicator,as_of)
+        if structured:
+            metrics.append(structured);continue
         selected=records.get((indicator['id'],month));config=progress.settings(db,department,year,indicator)
         if selected:
             saved=json.loads(selected['snapshot'])
