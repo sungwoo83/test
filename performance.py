@@ -233,7 +233,9 @@ def record_access(db,user,key,catalog,write=False):
     own=row['employee']==user['employee_id']
     appointed=db.execute('SELECT 1 FROM performance_ratings WHERE department=? AND year=? AND indicator=? AND evaluator=?',(row['department'],row['year'],row['indicator'],user['employee_id'])).fetchone()
     if write:
-        if own and row['department']==user['department_id'] and row['indicator'] in json.loads(user['indicators']):pass
+        if own and row['department']==user['department_id'] and row['indicator'] in json.loads(user['indicators']):
+            import office
+            office.assignment(db,user,row['department'],row['indicator'])
         elif manager(user):m.department_scope(user,row['department'],catalog)
         else:fail('현재 담당지표만 수정할 수 있습니다.',403)
     elif own or row['state']=='approved' and appointed or inherited_readable(db,user,row):pass
@@ -571,7 +573,7 @@ def account(db,user,data,catalog):
     elif action=='transfer':
         m.require_super(user)
         # app.selection reads app's catalog and validates IDs with current effective definitions.
-        dep,ids=app.selection(data)
+        dep,ids=app.selection(data,db,target)
         if row['role']=='superadmin' and not m.can_be_superadmin(dep,catalog):fail('수퍼관리자 소속 부서를 확인해 주세요.')
         db.execute('UPDATE users SET department_id=?,indicators=?,revision=revision+1 WHERE employee_id=?',(dep,dumps(ids),target));after={'department_id':dep,'indicators':ids}
         db.execute('INSERT INTO performance_transfers(employee,from_department,to_department,before_json,after_json,reason,actor,created_at) VALUES(?,?,?,?,?,?,?,?)',(target,row['department_id'],dep,dumps(before),dumps(after),why,user['employee_id'],m.stamp()))
@@ -581,14 +583,22 @@ def account(db,user,data,catalog):
         if not successor or successor['department_id']!=row['department_id']:fail('같은 근무지의 활성 후임자를 선택해 주세요.')
         keys=data.get('indicators')
         if not isinstance(keys,list) or not keys or set(keys)-set(json.loads(row['indicators'])):fail('기존 담당지표에서 인계 항목을 선택해 주세요.')
-        assigned=sorted(set(json.loads(successor['indicators']))|set(keys))
-        db.execute('UPDATE users SET indicators=?,revision=revision+1 WHERE employee_id=?',(dumps(assigned),successor['employee_id']))
+        if successor['employee_id']==target:fail('다른 후임자를 선택해 주세요.')
+        if successor['role']=='superadmin' and user['role']!='superadmin':fail('수퍼관리자 계정은 수퍼관리자만 변경할 수 있습니다.',403)
+        import office
+        office.available_selection(db,row['department_id'],keys,successor['employee_id'],target)
+        retained=json.loads(successor['indicators']) if successor['assignment_confirmed'] else []
+        office.available_selection(db,row['department_id'],retained,successor['employee_id'])
+        assigned=sorted(set(retained)|set(keys))
+        db.execute('UPDATE users SET indicators=?,assignment_confirmed=1,revision=revision+1 WHERE employee_id=?',(dumps(assigned),successor['employee_id']))
         remaining=[k for k in json.loads(row['indicators']) if k not in keys]
         db.execute('UPDATE users SET indicators=?,revision=revision+1 WHERE employee_id=?',(dumps(remaining),target))
         for p in db.execute('SELECT * FROM performance_plans WHERE department=?',(row['department_id'],)).fetchall():
             definition=json.loads(p['definition'])
             if p['indicator'] in keys and definition['representative']==target:
-                writable(db,p['department'],p['year']);definition['representative']=successor['employee_id']
+                state=db.execute('SELECT closed FROM performance_years WHERE department=? AND year=?',(p['department'],p['year'])).fetchone()
+                if state and state['closed']:continue
+                definition['representative']=successor['employee_id']
                 db.execute('UPDATE performance_plans SET definition=?,revision=revision+1 WHERE department=? AND year=? AND indicator=?',(dumps(definition),p['department'],p['year'],p['indicator']))
         after={'successor':successor['employee_id'],'indicators':keys,'historical_records':'original owner preserved'}
         db.execute('INSERT INTO performance_transfers(employee,from_department,to_department,before_json,after_json,reason,actor,created_at) VALUES(?,?,?,?,?,?,?,?)',(target,row['department_id'],row['department_id'],dumps(before),dumps(after),why,user['employee_id'],m.stamp()))

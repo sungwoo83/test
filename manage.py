@@ -75,14 +75,14 @@ def main():
             if not re.fullmatch(r'[A-Za-z0-9_-]{1,30}',args.employee_id):
                 parser.error('사번 형식을 확인해 주세요.')
             if len(args.name)>100: parser.error('성명은 100자 이내로 입력해 주세요.')
-            indicators=[k['id'] for k in app.available(args.department_id,db)]
+            indicators=[] # System access does not reserve every workplace indicator.
             db.execute("INSERT INTO users(employee_id,password_hash,department_id,indicators,revision,created_at,role,display_name) VALUES(?,?,?,?,1,?,'superadmin',?)",
                 (args.employee_id,encoded,args.department_id,json.dumps(indicators),app.now(),args.name.strip()))
             db.execute('INSERT INTO changes(employee_id,after_json,changed_at) VALUES(?,?,?)',
                 (args.employee_id,json.dumps({'department_id':args.department_id,'indicators':indicators}),app.now()))
         if args.command=='promote-superadmin':
             department=args.department_id or user['department_id']
-            indicators=json.loads(user['indicators']) if department==user['department_id'] else [k['id'] for k in app.available(department,db)]
+            indicators=json.loads(user['indicators']) if department==user['department_id'] else []
             name=args.name.strip() if args.name else user['display_name']
             db.execute("UPDATE users SET role='superadmin',admin_department_id=NULL,department_id=?,indicators=?,display_name=?,revision=revision+1 WHERE employee_id=?",(department,json.dumps(indicators),name,args.employee_id))
             if department!=user['department_id']:

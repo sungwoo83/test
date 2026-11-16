@@ -64,7 +64,9 @@ class RevisionFlow(unittest.TestCase):
         self.assertEqual(after['weight'],before['weight']);self.assertEqual(after['components'],before['components']);self.assertEqual(after['schedule'][0]['cadence'],'weekly')
 
     def test_new_signup_requires_manager_assignment_confirmation(self):
-        self.configure();self.cookie=''
+        self.configure()
+        with app.connect() as db:db.execute("UPDATE users SET indicators='[]' WHERE employee_id='worker'")
+        self.cookie=''
         status,_=self.request('/api/register',{'employee_id':'pending','display_name':'배정 대기 직원','password':self.password,'department_id':self.a['id'],'indicators':self.ka});self.assertEqual(status,200)
         cookie=self.cookie;me=self.request('/api/me')[1];self.assertEqual(me['user']['assignment_confirmed'],0)
         status,_=self.post('/api/performance/record',self.payload(revision=0,values={'count':'5'},narrative='',plan='',status='진행중'));self.assertEqual(status,403)

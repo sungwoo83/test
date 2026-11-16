@@ -81,18 +81,21 @@ def profile(row):
     return {k: json.loads(row[k]) if k == 'indicators' else row[k]
             for k in ('employee_id', 'department_id', 'indicators', 'revision', 'role', 'admin_department_id', 'display_name', 'assignment_confirmed')}
 
-def selection(data):
+def selection(data, db=None, employee_id=None):
     dept, values = data.get('department_id'), data.get('indicators')
-    allowed = {k['id'] for k in available(dept)}
+    allowed = {k['id'] for k in available(dept,db)}
     if dept == 'SYS-PERFORMANCE':
         if values != []: raise ValueError('평가총괄 부서는 담당지표를 비워 주세요.')
         return dept, []
     if not allowed:
         raise ValueError('근무지를 선택해 주세요.')
-    if not isinstance(values, list) or not values or len(values) > 165:
-        raise ValueError('담당지표를 하나 이상 선택해 주세요.')
+    if not isinstance(values, list) or len(values) > 165:
+        raise ValueError('담당지표 목록을 확인해 주세요.')
     if any(not isinstance(v, str) or v not in allowed for v in values):
         raise ValueError('선택한 근무지에 해당하는 담당지표를 선택해 주세요.')
+    if db is not None:
+        import office
+        office.available_selection(db,dept,values,employee_id)
     return dept, sorted(set(values))
 
 def password_hash(password, salt=None):
@@ -160,6 +163,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(exc.status, {'error':str(exc)})
             except (ValueError,OSError):
                 return self.reply(404, {'error':'증빙파일을 찾을 수 없습니다.'})
+        if path == '/api/assignment-options':
+            try:
+                import office
+                params={k:v[0] for k,v in parse_qs(urlsplit(self.path).query).items()}
+                with connect() as db:
+                    session=self.session(db)
+                    user=db.execute('SELECT * FROM users WHERE employee_id=?',(session['employee_id'],)).fetchone() if session else None
+                    return self.reply(200,office.options(db,user,params.get('department_id'),CATALOG,available))
+            except management.APIError as exc:return self.reply(exc.status,{'error':str(exc)})
         if path == '/api/catalog':
             with connect() as db:
                 return self.reply(200, {'demo': DEMO, 'departments': CATALOG['departments'],
@@ -271,7 +283,7 @@ class Handler(BaseHTTPRequestHandler):
                         if not isinstance(display_name,str) or not 1<=len(display_name.strip())<=100 or any(ord(c)<32 or 0xD800<=ord(c)<=0xDFFF for c in display_name):
                             raise ValueError('이름을 1~100자로 입력해 주세요.')
                         display_name=display_name.strip()
-                        dept, indicators = selection(data)
+                        dept, indicators = selection(data,db)
                         if db.execute('SELECT 1 FROM users WHERE employee_id=?', (employee,)).fetchone():
                             return self.reply(409, {'error': '이미 가입된 사번입니다. 로그인해 주세요.'})
                         db.execute('INSERT INTO users(employee_id,password_hash,department_id,indicators,revision,created_at,display_name,assignment_confirmed) VALUES(?,?,?,?,1,?,?,0)', (employee, password_hash(password), dept, json.dumps(indicators), now(),display_name))
@@ -320,7 +332,7 @@ class Handler(BaseHTTPRequestHandler):
                     db.commit()
                     return self.reply(200, {'ok': True}, self.cookie('', 0))
                 if self.path == '/api/profile':
-                    dept, indicators = selection(data)
+                    dept, indicators = selection(data,db,session['employee_id'])
                     row = db.execute('SELECT * FROM users WHERE employee_id=?', (session['employee_id'],)).fetchone()
                     if data.get('revision') != row['revision']:
                         return self.reply(409, {'error': '다른 화면에서 설정이 변경되었습니다. 새로고침해 주세요.'})

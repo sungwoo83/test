@@ -35,8 +35,8 @@ class ProfileFlow(unittest.TestCase):
         cookie=r.getheader('Set-Cookie')
         if cookie: self.cookie=cookie.split(';')[0]
         c.close(); return status,value
-    def register(self,employee='000123'):
-        result=self.request('/api/register',{'employee_id':employee,'display_name':'테스트 직원 '+employee,'password':self.password,'department_id':self.a['id'],'indicators':self.ka})
+    def register(self,employee='000123',indicators=None):
+        result=self.request('/api/register',{'employee_id':employee,'display_name':'테스트 직원 '+employee,'password':self.password,'department_id':self.a['id'],'indicators':self.ka if indicators is None else indicators})
         # Existing workflow fixtures represent already confirmed staff assignments.
         if result[0]==200:
             with app.connect() as db:db.execute('UPDATE users SET assignment_confirmed=1 WHERE employee_id=?',(employee,))
@@ -51,7 +51,7 @@ class ProfileFlow(unittest.TestCase):
         self.assertEqual(self.request('/api/profile',{'csrf':'invalid','department_id':self.b['id'],'indicators':self.kb})[0],403)
         change={'csrf':me['csrf'],'revision':me['user']['revision'],'department_id':self.b['id'],'indicators':self.kb}
         self.assertEqual(self.request('/api/profile',{**change,'indicators':self.ka})[0],400)
-        self.assertEqual(self.request('/api/profile',{**change,'indicators':[]})[0],400)
+        self.assertEqual(self.request('/api/profile',{**change,'indicators':'invalid'})[0],400)
         self.assertEqual(self.request('/api/profile',change)[0],200)
         self.assertEqual(self.request('/api/profile',change)[0],409)
         status,updated=self.request('/api/me'); self.assertEqual(updated['user']['department_id'],self.b['id'])
@@ -90,7 +90,7 @@ class ProfileFlow(unittest.TestCase):
     def test_other_accounts_cannot_be_targeted(self):
         self.register('000123')
         first_cookie=self.cookie
-        self.cookie=''; self.register('000456')
+        self.cookie=''; self.register('000456',indicators=[])
         me=self.request('/api/me')[1]
         self.assertEqual(self.request('/api/profile',{'employee_id':'000123','csrf':me['csrf'],'revision':1,'department_id':self.b['id'],'indicators':self.kb})[0],200)
         self.cookie=first_cookie

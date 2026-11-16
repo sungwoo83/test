@@ -16,9 +16,73 @@ def initialize(db):
     CREATE TABLE IF NOT EXISTS office_submission_sources(submission_id INTEGER REFERENCES office_submissions(id),kind TEXT,record_id INTEGER,record_revision INTEGER,PRIMARY KEY(submission_id,kind,record_id));''')
 
 
+def roster(db, dep):
+    return [dict(r) for r in db.execute('SELECT employee_id,display_name,role,indicators,assignment_confirmed,revision,account_status FROM users WHERE department_id=? ORDER BY employee_id',(dep,))]
+
+
+def roster_version(db, dep):
+    return hashlib.sha256(p.dumps(roster(db,dep)).encode()).hexdigest()
+
+
+def owners(db, dep, key, people=None):
+    # Inactive accounts keep their reservation until an explicit reassignment.
+    return [r for r in (roster(db,dep) if people is None else people) if r['assignment_confirmed'] and key in json.loads(r['indicators'])]
+
+
+def available_selection(db, dep, keys, employee=None, releasing=None):
+    people=roster(db,dep)
+    for key in keys:
+        if any(r['employee_id'] not in (employee,releasing) for r in owners(db,dep,key,people)):
+            p.fail('다른 직원에게 배정 확정된 지표입니다. 다시 조회하거나 관리자에게 담당자 조정을 요청해 주세요.',409)
+
+
+def options(db,user,dep,catalog,available):
+    if not any(d['id']==dep for d in catalog['departments']):p.fail('근무지를 선택해 주세요.')
+    privileged=user and (user['role']=='superadmin' or (user['role']=='admin' and user['admin_department_id']==dep))
+    result=[];staff=roster(db,dep)
+    for k in available(dep,db):
+        people=owners(db,dep,k['id'],staff)
+        item={'indicator_id':k['id'],'taken':bool(people),'own':bool(user and len(people)==1 and people[0]['employee_id']==user['employee_id']),'conflict':len(people)>1}
+        if privileged:item['owners']=[{'employee_id':r['employee_id'],'display_name':r['display_name']} for r in people]
+        result.append(item)
+    return {'items':result,**({'revision':roster_version(db,dep)} if privileged else {})}
+
+
+def reassign(db,user,data,available):
+    dep=data.get('department_id');m.require_manager(user,dep)
+    key=data.get('indicator_id');p.indicator_for(db,dep,key,available)
+    if data.get('roster_revision')!=roster_version(db,dep):p.fail('담당자 배정이 변경되었습니다. 다시 조회해 주세요.',409)
+    target=data.get('employee_id') or None
+    people=roster(db,dep);successor=next((r for r in people if r['employee_id']==target),None)
+    if target and (not successor or successor['account_status']!='active'):p.fail('같은 근무지의 활성 직원을 선택해 주세요.')
+    affected=[r for r in people if key in json.loads(r['indicators']) or r['employee_id']==target]
+    if user['role']!='superadmin' and any(r['role']=='superadmin' for r in affected):p.fail('수퍼관리자 담당지표는 수퍼관리자만 조정할 수 있습니다.',403)
+    before=[{'employee_id':r['employee_id'],'indicators':json.loads(r['indicators']),'confirmed':r['assignment_confirmed']} for r in affected]
+    previous=[r['employee_id'] for r in owners(db,dep,key)]
+    for person in affected:
+        keys=set(json.loads(person['indicators']));keys.discard(key)
+        confirmed=person['assignment_confirmed']
+        if person['employee_id']==target:
+            # A reassignment confirms only this key for a previously pending account.
+            if not confirmed:keys=set()
+            keys.add(key);confirmed=1
+        db.execute('UPDATE users SET indicators=?,assignment_confirmed=?,revision=revision+1 WHERE employee_id=?',(p.dumps(sorted(keys)),confirmed,person['employee_id']))
+        db.execute('DELETE FROM sessions WHERE employee_id=?',(person['employee_id'],))
+    if target:
+        for plan in db.execute('SELECT * FROM performance_plans WHERE department=? AND indicator=?',(dep,key)).fetchall():
+            state=db.execute('SELECT closed FROM performance_years WHERE department=? AND year=?',(dep,plan['year'])).fetchone()
+            definition=json.loads(plan['definition'])
+            if (not state or not state['closed']) and definition.get('representative') in previous:
+                definition['representative']=target
+                db.execute('UPDATE performance_plans SET definition=?,revision=revision+1 WHERE department=? AND year=? AND indicator=?',(p.dumps(definition),dep,plan['year'],key))
+    m.audit(db,user['employee_id'],'지표 담당자 조정',dep,key,before,{'employee_id':target,'historical_records':'original owner preserved'},m.reason(data))
+    return {'ok':True}
+
+
 def assignment(db,user,dep,key):
     if user['department_id']!=dep or key not in json.loads(user['indicators']) or not user['assignment_confirmed']:
         p.fail('관리자가 담당지표 배정을 확정한 후 입력·제출할 수 있습니다.',403)
+    available_selection(db,dep,[key],user['employee_id'])
 
 
 def guard(db,kind,record_id):
@@ -55,6 +119,7 @@ def preview(db,user,params,catalog,available):
 
 def post(db,user,data,catalog,available):
     action=data.get('action');why=m.reason(data)
+    if action=='reassign':return reassign(db,user,data,available)
     if action=='assignment':
         target=db.execute('SELECT * FROM users WHERE employee_id=?',(data.get('employee_id'),)).fetchone()
         if not target:p.fail('직원을 확인해 주세요.')
@@ -63,6 +128,7 @@ def post(db,user,data,catalog,available):
         if data.get('revision')!=target['revision']:p.fail('담당지표가 변경되었습니다. 다시 조회해 주세요.',409)
         keys=data.get('indicators');allowed={k['id'] for k in available(dep,db)}
         if not isinstance(keys,list) or any(not isinstance(k,str) or k not in allowed for k in keys):p.fail('해당 근무지의 담당지표를 선택해 주세요.')
+        available_selection(db,dep,keys,target['employee_id'])
         before={'indicators':json.loads(target['indicators']),'confirmed':bool(target['assignment_confirmed'])}
         db.execute('UPDATE users SET indicators=?,assignment_confirmed=1,revision=revision+1 WHERE employee_id=?',(p.dumps(sorted(set(keys))),target['employee_id']))
         db.execute('DELETE FROM sessions WHERE employee_id=?',(target['employee_id'],))

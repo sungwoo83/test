@@ -120,13 +120,11 @@ class PerformanceFlow(unittest.TestCase):
         self.assertEqual(self.post('/api/performance/plan',self.payload(indicator_id=self.ka[1],revision=0,definition=definition()))[0],409)
 
     def test_period_lock_requires_all_assigned_people_and_blocks_evidence(self):
-        self.configure();self.save();self.transition('submit',1);self.transition('approve',2,self.manager)
+        self.configure();self.save();self.transition('submit',1)
         self.cookie=self.manager
         payload=self.payload(revision=0,closed=True,reason='기간 취합 마감')
         self.assertEqual(self.post('/api/performance/lock',payload)[0],409)
-        status,data=self.post('/api/performance/record',self.payload(employee_id='manager',revision=0,values={'count':'10'},narrative='',plan='',status='완료'));self.assertEqual(status,200,data)
-        self.assertEqual(self.post('/api/performance/transition',self.payload(employee_id='manager',revision=1,action='submit'))[0],200)
-        self.assertEqual(self.post('/api/performance/transition',self.payload(employee_id='manager',revision=2,action='approve'))[0],200)
+        self.transition('approve',2,self.manager)
         self.assertEqual(self.post('/api/performance/lock',payload)[0],200)
         self.assertEqual(self.transition('return',3,self.manager)[0],409)
         self.cookie=self.manager;self.assertEqual(self.post('/api/performance/lock',{**payload,'revision':1,'closed':False})[0],200)
@@ -239,8 +237,8 @@ class PerformanceFlow(unittest.TestCase):
         with app.connect() as db:
             worker=db.execute("SELECT * FROM users WHERE employee_id='worker'").fetchone()
             file=performance_files.upload(db,worker,record['id'],'private.pdf',b'%PDF-handover-proof',app.CATALOG,app.DB.parent/'uploads')['file']
-        self.cookie='';self.register('successor');successor_cookie=self.cookie
-        self.cookie='';self.register('unrelated');unrelated_cookie=self.cookie
+        self.cookie='';self.register('successor',indicators=[]);successor_cookie=self.cookie
+        self.cookie='';self.register('unrelated',indicators=[]);unrelated_cookie=self.cookie
         self.cookie=successor_cookie;self.assertEqual(test_entries.EntryFlow.binary(self,'/api/performance/files/'+str(file['id']))[0],403)
         self.cookie=self.manager
         self.assertEqual(self.post('/api/performance/account',{'employee_id':'worker','action':'handover','successor':'successor','indicators':[self.ka[0]],'reason':'명시적 담당자 인계'})[0],200)

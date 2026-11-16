@@ -227,6 +227,7 @@ def post(db,user,path,data,catalog,available):
         if user['role']!='employee' and owner!=user['employee_id'] and row is None:
             target=db.execute('SELECT * FROM users WHERE employee_id=? AND department_id=?',(owner,department)).fetchone()
             if not target or indicator['id'] not in json.loads(target['indicators']):raise APIError(400,'해당 직원의 담당지표를 선택해 주세요.')
+            office.assignment(db,target,department,indicator['id'])
         before=dict(row) if row else None
         if data.get('revision')!=(row['revision'] if row else 0): raise APIError(409,'실적이 변경되었습니다. 다시 불러와 주세요.')
         why=reason(data)

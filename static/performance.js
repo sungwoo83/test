@@ -11,7 +11,7 @@ function setupPerformance(){
   if(!$('perf-date').value){$('perf-date').value=today;$('perf-year').value=today.slice(0,4);}
   for(const el of document.querySelectorAll('.perf-manager'))el.hidden=!isManager();$('perf-ops-tab').hidden=$('perf-bundle-tab').hidden=$('perf-overview-tab').hidden=current.user.role!=='superadmin';
   if((!isManager()&&['review','annual','accounts','audit','operations','overview','office','bundle'].includes(perfTab))||(current.user.role!=='superadmin'&&['overview','bundle'].includes(perfTab)))perfTab='own';
-  if(location.hash==='#performance')loadPerformance();
+  if(['#performance','#home'].includes(location.hash))loadPerformance();
 }
 function perfContext(){return {department_id:$('perf-department').value,year:Number($('perf-year').value),date:$('perf-date').value};}
 function perfButton(label,run,primary=false){const b=node('button',primary?'primary':'secondary',label);b.type='button';b.onclick=run;return b;}
@@ -55,7 +55,7 @@ function renderPerfRecords(data){
   const canManage=current.user.role==='superadmin'||current.user.role==='admin'&&current.user.admin_department_id===data.department_id;
   const total=data.items.length,all=data.items.flatMap(i=>i.records),summary=$('perf-summary');summary.append(node('strong','',`${total}개 지표`),node('span','',`임시저장 ${all.filter(r=>r.state==='draft').length} · 제출 ${all.filter(r=>r.state==='submitted').length} · 반려 ${all.filter(r=>r.state==='returned').length} · 확정 ${all.filter(r=>r.state==='approved').length}`));
   if(data.year_state.closed)summary.append(perfNote('확정 보관된 연도입니다. 수정하려면 관리자가 연도 마감을 해제해야 합니다.'));
-  if(!total)$('perf-content').append(perfNote('현재 근무지의 담당지표가 없습니다. 나의 업무 홈에서 담당지표를 확인해 주세요.'));
+  if(!total)$('perf-content').append(perfNote('현재 근무지의 담당지표가 없습니다. 나의 업무에서 담당지표를 확인해 주세요.'));
   for(const item of data.items){
     const plan=item.definition,card=node('article','perf-card'),heading=node('div','perf-heading');heading.append(node('h2','',item.indicator.name));card.append(heading);
     card.append(node('p','muted',`${item.period?.label||'관리기간 밖'} · 배점 ${plan.weight}점 · 제출기한 ${item.period?.due||'—'}`));
@@ -172,6 +172,8 @@ function renderPerfTasks(data){
     card.append(perfButton('등급 입력',()=>{let grade;perfDialog('지정된 지표 등급 입력',box=>{grade=perfInput(box,'평가등급',r.grade||'A','text',['S','A','B','C','D'].map(x=>[x,x]));},()=>perfPost('grade',{department_id:r.department,year:r.year,indicator_id:r.indicator,revision:r.revision,grade:grade.value}));}));$('perf-content').append(card);}
 }
 function renderPerfAccounts(data){
+  $('perf-content').append(node('h2','','지표 담당자 조정'),perfNote('같은 근무지의 지표는 한 직원에게 배정합니다. 기존 중복 배정도 아래에서 정리할 수 있습니다. 실적·증빙의 원래 작성자는 보존됩니다.'),perfTable(['지표','확정 담당자','처리'],indicators(perfContext().department_id).map(k=>{const owners=data.users.filter(p=>p.department_id===perfContext().department_id&&p.assignment_confirmed&&JSON.parse(p.indicators||'[]').includes(k.id));return [k.name,owners.map(p=>p.display_name+' ('+p.employee_id+')').join(', ')||'미배정',perfButton('담당자 조정',()=>adjustIndicatorOwner(k,data.users))];})),node('h2','','직원별 배정·계정 관리'));
+
   const rows=data.users.map(person=>{const actions=node('div','perf-actions');actions.append(perfButton('담당지표 배정·확정',()=>confirmAssignment(person)));if(current.user.role!=='superadmin'&&person.role!=='employee'){actions.append(node('span','muted','수퍼관리자 관리 대상'));return [person.employee_id,person.display_name,departmentLabel(person.department_id),roleLabels[person.role],(person.account_status==='active'?'활성':'비활성')+' · '+(person.assignment_confirmed?'배정 확정':'배정 확인 대기'),actions];}for(const [action,label]of [['reset-password','비밀번호 초기화'],['status','활성·비활성'],['handover','담당지표 인계'],...(current.user.role==='superadmin'?[['transfer','근무지 이동']]:[])])actions.append(perfButton(label,()=>editPerfAccount(person,action,data.users)));return [person.employee_id,person.display_name,departmentLabel(person.department_id),roleLabels[person.role],(person.account_status==='active'?'활성':'비활성')+' · '+(person.assignment_confirmed?'배정 확정':'배정 확인 대기'),actions];});$('perf-content').append(perfTable(['사번','이름','근무지','권한','계정상태','처리'],rows));
 }
 function editPerfAccount(person,action,people=[]){
@@ -229,13 +231,31 @@ function editSchedule(item){
     const add=(value={effective:item.definition.start,cadence:'monthly'})=>{const group=node('div','perf-editor-row'),row={};row.effective=perfInput(group,'적용 시작일',value.effective,'date');row.cadence=perfInput(group,'관리주기',value.cadence,'text',[['monthly','월별'],['weekly','주별']]);group.append(perfButton('삭제',()=>{rows=rows.filter(x=>x!==row);group.remove();}));rows.push(row);list.append(group);};item.definition.schedule.forEach(add);box.append(perfButton('전환 일정 추가',()=>add()));
   },()=>perfPost('schedule',{indicator_id:item.indicator.id,revision:item.definition.revision,schedule:rows.map(r=>({effective:r.effective.value,cadence:r.cadence.value})),due_days:Number(due.value)}),'관리주기 설정');
 }
-function confirmAssignment(person){
-  let checks=[];
-  perfDialog(person.display_name+' · 담당지표 배정 확정',box=>{
-    box.append(perfNote('확정한 담당지표만 입력·제출할 수 있습니다. 변경 후 해당 직원은 다시 로그인해야 합니다.'));
-    const currentKeys=JSON.parse(person.indicators||'[]');for(const k of indicators(person.department_id))checks.push({id:k.id,input:perfInput(box,k.name,currentKeys.includes(k.id),'checkbox')});
-  },()=>perfPost('office',{action:'assignment',employee_id:person.employee_id,revision:person.revision,indicators:checks.filter(r=>r.input.checked).map(r=>r.id)}));
+async function confirmAssignment(person){
+  try{
+    const result=await api('/api/assignment-options?'+new URLSearchParams({department_id:person.department_id}));let checks=[];
+    perfDialog(person.display_name+' · 담당지표 배정 확정',box=>{
+      box.append(perfNote('같은 근무지의 지표는 한 직원에게만 확정할 수 있습니다. 이미 배정된 지표는 지표 담당자 조정에서 변경하세요. 변경 후 해당 직원은 다시 로그인해야 합니다.'));
+      const currentKeys=JSON.parse(person.indicators||'[]');for(const k of indicators(person.department_id)){
+        const status=result.items.find(x=>x.indicator_id===k.id),others=(status?.owners||[]).filter(o=>o.employee_id!==person.employee_id);
+        const label=k.name+(others.length?' · '+others.map(o=>o.display_name||o.employee_id).join(', ')+' 배정 완료':'');
+        const input=perfInput(box,label,currentKeys.includes(k.id)&&!others.length,'checkbox');input.disabled=Boolean(others.length);checks.push({id:k.id,input});
+      }
+    },()=>perfPost('office',{action:'assignment',employee_id:person.employee_id,revision:person.revision,indicators:checks.filter(r=>r.input.checked).map(r=>r.id)}));
+  }catch(e){toast(e.message);}
 }
+async function adjustIndicatorOwner(indicator,people){
+  const dep=perfContext().department_id;
+  try{
+    const result=await api('/api/assignment-options?'+new URLSearchParams({department_id:dep})),status=result.items.find(x=>x.indicator_id===indicator.id);let employee;
+    perfDialog(indicator.name+' · 담당자 조정',box=>{
+      box.append(perfNote('현재 담당자: '+((status.owners||[]).map(o=>o.display_name+' ('+o.employee_id+')').join(', ')||'미배정')));
+      box.append(perfNote('기존 실적·증빙과 확정 보관된 연도는 보존됩니다. 새 담당자는 이후 실적을 입력합니다. 배정 대기 직원은 이 지표만 확정되며 다른 신청 지표는 다시 선택해야 합니다.'));
+      employee=perfInput(box,'새 담당자',status.owners?.length===1?status.owners[0].employee_id:'','text',[['','미배정'],...people.filter(p=>p.department_id===dep&&p.account_status==='active'&&(current.user.role==='superadmin'||p.role!=='superadmin')).map(p=>[p.employee_id,p.display_name+' ('+p.employee_id+')'])]);
+    },()=>perfPost('office',{action:'reassign',indicator_id:indicator.id,employee_id:employee.value,roster_revision:result.revision}));
+  }catch(e){toast(e.message);}
+}
+
 function renderOffice(data){
   $('perf-summary').append(node('strong','',`${data.as_of} 기준 근무지 공식 제출`),node('span','',data.ready?'제출 가능한 자료':'기준·담당 배정·실적 확정을 확인하세요.'));
   const rows=data.items.map(i=>{const c=i.aggregate.calculation||{};return [i.indicator.name,i.definition.weight,c.effective_weight,c.score,c.percent,i.aggregate.reason,i.legacy.length];});

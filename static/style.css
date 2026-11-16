@@ -22,3 +22,7 @@
 @media(max-width:650px){.perf-tabs{gap:5px}.perf-tabs button{font-size:11px;padding:8px 10px}.perf-toolbar{gap:8px}.perf-toolbar label{max-width:100%;flex:1;min-width:120px}.perf-card{padding:17px}.perf-heading h2{font-size:17px}.perf-form-grid{grid-template-columns:1fr}.perf-editor-row{flex-wrap:wrap}.perf-editor-row label{min-width:120px}.perf-card .health-badge{white-space:nowrap}.perf-chart .chart-axis{font-size:19px}#perf-dialog{padding:20px}.perf-summary strong{font-size:19px}}
 
 .perf-card table,#perf-content>.table-wrap table{width:100%;border-collapse:collapse}.perf-card th,.perf-card td,#perf-content>.table-wrap th,#perf-content>.table-wrap td{padding:11px 12px;text-align:left;border-bottom:1px solid #e6ede8;vertical-align:top}.perf-card th,#perf-content>.table-wrap th{background:#f1f6f2;font-weight:600;color:#355f49}#perf-content>.table-wrap{max-width:100%;overflow:auto}.perf-card .table-wrap{margin:15px 0}.perf-card .table-wrap .perf-actions{margin:0}.perf-card .table-wrap td:first-child{min-width:100px}
+
+.assignment-disabled{opacity:.65;background:#f1f4f5;cursor:not-allowed}.assignment-disabled .check-copy small{color:#475569}.workspace-profile{margin-bottom:24px}.workspace-profile .panel{margin-bottom:24px}
+
+.workspace-indicators>summary{font-weight:700;cursor:pointer;padding:4px 0}.workspace-indicators[open]>summary{margin-bottom:20px}

@@ -46,7 +46,7 @@ function metricChart(metric,data,tooltip){
 async function goToDashboardEntry(indicatorId){
   if(!dashboardData)return;const data=dashboardData;
   if(indicatorId?data.metrics.some(m=>m.indicator.id===indicatorId&&m.source==='periodic'):data.metrics.some(m=>m.source==='periodic')){
-    $('perf-year').value=data.year;$('perf-date').value=data.as_of;perfTab='own';location.hash='#performance';loadPerformance();return;
+    $('perf-year').value=data.year;$('perf-date').value=data.as_of;perfTab='own';location.hash='#home';loadPerformance();return;
   }
   location.hash='#monthly-panel';
   $('monthly-year').value=data.year;$('monthly-month').value=data.month;

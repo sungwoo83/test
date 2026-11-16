@@ -22,7 +22,7 @@ class ReviewFlow(unittest.TestCase):
 
     def add_worker(self,employee='000007',department=None,indicators=None):
         self.cookie=''
-        self.assertEqual(self.request('/api/register',{'employee_id':employee,'display_name':'테스트 직원 '+employee,'password':self.password,'department_id':department or self.a['id'],'indicators':indicators or self.ka})[0],200)
+        self.assertEqual(self.request('/api/register',{'employee_id':employee,'display_name':'테스트 직원 '+employee,'password':self.password,'department_id':department or self.a['id'],'indicators':indicators if indicators is not None else []})[0],200)
         with app.connect() as db:db.execute('UPDATE users SET assignment_confirmed=1 WHERE employee_id=?',(employee,))
         return self.cookie
     def save(self,employee='worker',value='5',revision=0,**extra):
@@ -33,7 +33,12 @@ class ReviewFlow(unittest.TestCase):
 
     def test_employee_entries_remain_independent_and_manager_edits_owner(self):
         self.cookie=self.worker;self.assertEqual(self.save()[0],200)
-        second=self.add_worker();self.assertEqual(self.save(employee='000007',value='8')[0],200)
+        second=self.add_worker()
+        self.cookie=self.manager
+        revision=self.request('/api/assignment-options?department_id='+self.a['id'])[1]['revision']
+        self.assertEqual(self.post('/api/performance/office',{**self.context,'action':'reassign','indicator_id':self.ka[0],'employee_id':'000007','roster_revision':revision,'reason':'담당자 변경'})[0],200)
+        self.cookie='';self.request('/api/login',{'employee_id':'000007','password':self.password});second=self.cookie
+        self.assertEqual(self.save(employee='000007',value='8')[0],200)
         self.cookie=self.manager
         status,report=self.report();self.assertEqual(status,200)
         records={r['employee_id']:r['record'] for r in report['items'] if r['indicator']['id']==self.ka[0]}
@@ -42,9 +47,8 @@ class ReviewFlow(unittest.TestCase):
         with app.connect() as db:
             row=db.execute("SELECT * FROM monthly_actuals WHERE employee_id='worker'").fetchone()
             self.assertEqual(row['updated_by'],'manager');self.assertEqual(row['employee_id'],'worker')
-        self.cookie=self.worker
-        result=self.request('/api/monthly?department_id='+self.a['id']+'&year=2026&month=5')[1]
-        self.assertEqual(result['items'][0]['record']['actual'],'9')
+        self.cookie='';self.request('/api/login',{'employee_id':'worker','password':self.password})
+        self.assertEqual(self.save(value='99',revision=2)[0],403)
         self.assertEqual(self.save(employee='000007',value='99',revision=1)[0],403)
 
     def test_review_scope_and_superadmin_all_workplaces(self):

@@ -16,7 +16,7 @@ class ManagementFlow(unittest.TestCase):
         test_app.ProfileFlow.setUp(self)
         self.register('worker')
         self.worker=self.cookie
-        self.cookie='';self.register('manager')
+        self.cookie='';self.register('manager',indicators=[])
         with app.connect() as db:
             db.execute("UPDATE users SET role='admin',admin_department_id=? WHERE employee_id='manager'",(self.a['id'],))
         self.manager=self.cookie
@@ -42,7 +42,7 @@ class ManagementFlow(unittest.TestCase):
         self.assertEqual(self.request('/api/monthly?department_id='+self.a['id']+'&year=2026&month=5')[0],200)
     def test_adjustment_lock_reopen_and_snapshot(self):
         self.cookie=self.worker
-        actual={**self.context,'indicator_id':self.ka[0],'revision':0,'value':'12.5','reason':'월간실적'}
+        actual={**self.context,'employee_id':'worker','indicator_id':self.ka[0],'revision':0,'value':'12.5','reason':'월간실적'}
         self.assertEqual(self.post('/api/monthly/actual',actual)[0],200)
         self.assertEqual(self.post('/api/monthly/adjust',{**actual,'revision':1,'value':'11'})[0],403)
         self.cookie=self.manager
