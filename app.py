@@ -59,6 +59,8 @@ def initialize():
         performance.initialize(db)
         import office
         office.initialize(db)
+        # Older unassigned accounts may contain blank/null JSON instead of an empty list.
+        db.execute("UPDATE users SET indicators='[]',assignment_confirmed=0,revision=revision+1 WHERE trim(indicators) IN ('','null','\"\"')")
 
 def now():
     return datetime.now(timezone.utc).isoformat()
@@ -83,12 +85,13 @@ def profile(row):
 
 def selection(data, db=None, employee_id=None):
     dept, values = data.get('department_id'), data.get('indicators')
+    if values is None:values=[]
+    if not isinstance(dept,str) or not any(d['id']==dept for d in CATALOG['departments']):
+        raise ValueError('근무지를 선택해 주세요.')
     allowed = {k['id'] for k in available(dept,db)}
     if dept == 'SYS-PERFORMANCE':
         if values != []: raise ValueError('평가총괄 부서는 담당지표를 비워 주세요.')
         return dept, []
-    if not allowed:
-        raise ValueError('근무지를 선택해 주세요.')
     if not isinstance(values, list) or len(values) > 165:
         raise ValueError('담당지표 목록을 확인해 주세요.')
     if any(not isinstance(v, str) or v not in allowed for v in values):
@@ -283,7 +286,7 @@ class Handler(BaseHTTPRequestHandler):
                         if not isinstance(display_name,str) or not 1<=len(display_name.strip())<=100 or any(ord(c)<32 or 0xD800<=ord(c)<=0xDFFF for c in display_name):
                             raise ValueError('이름을 1~100자로 입력해 주세요.')
                         display_name=display_name.strip()
-                        dept, indicators = selection(data,db)
+                        dept, indicators = selection({'department_id':data.get('department_id'),'indicators':[]},db)
                         if db.execute('SELECT 1 FROM users WHERE employee_id=?', (employee,)).fetchone():
                             return self.reply(409, {'error': '이미 가입된 사번입니다. 로그인해 주세요.'})
                         db.execute('INSERT INTO users(employee_id,password_hash,department_id,indicators,revision,created_at,display_name,assignment_confirmed) VALUES(?,?,?,?,1,?,?,0)', (employee, password_hash(password), dept, json.dumps(indicators), now(),display_name))

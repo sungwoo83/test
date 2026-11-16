@@ -19,6 +19,9 @@ class AssignmentFlow(unittest.TestCase):
         self.cookie=''
         result=self.request('/api/register',{'employee_id':name,'display_name':'배정 대기 '+name,'password':self.password,'department_id':department or self.a['id'],'indicators':keys or []})
         self.assertEqual(result[0],200,result)
+        if keys:
+            me=self.request('/api/me')[1]
+            self.assertEqual(self.request('/api/profile',{'csrf':me['csrf'],'revision':me['user']['revision'],'department_id':department or self.a['id'],'indicators':keys})[0],200)
         return self.cookie
     def options(self):return self.request('/api/assignment-options?department_id='+self.a['id'])[1]
     def adjust(self,target='next',revision=None,**kw):
@@ -31,9 +34,10 @@ class AssignmentFlow(unittest.TestCase):
         self.cookie=self.worker;self.assertTrue(next(i for i in self.options()['items'] if i['indicator_id']==self.ka[0])['own'])
         self.cookie=self.manager;self.assertEqual(next(i for i in self.options()['items'] if i['indicator_id']==self.ka[0])['owners'][0]['employee_id'],'worker')
 
-    def test_registration_profile_and_confirmation_reject_occupied_keys(self):
+    def test_signup_ignores_assignments_and_profile_confirmation_reject_occupied_keys(self):
         cookie=self.pending();self.assertEqual(self.post('/api/profile',{'revision':1,'department_id':self.a['id'],'indicators':[self.ka[0]],'employee_id':'worker'})[0],409)
-        self.cookie='';self.assertEqual(self.request('/api/register',{'employee_id':'blocked','display_name':'중복 신청','password':self.password,'department_id':self.a['id'],'indicators':self.ka})[0],409)
+        self.cookie='';self.assertEqual(self.request('/api/register',{'employee_id':'blocked','display_name':'중복 신청','password':self.password,'department_id':self.a['id'],'indicators':self.ka})[0],200)
+        self.assertEqual(self.request('/api/me')[1]['user']['indicators'],[])
         self.cookie=self.manager
         self.assertEqual(self.post('/api/performance/office',{'action':'assignment','employee_id':'next','revision':1,'indicators':self.ka,'reason':'배정 확정'})[0],409)
         with app.connect() as db:self.assertEqual(db.execute("SELECT assignment_confirmed FROM users WHERE employee_id='next'").fetchone()[0],0)
@@ -68,7 +72,7 @@ class AssignmentFlow(unittest.TestCase):
         self.pending('one',self.ka);self.pending('two',self.ka);self.cookie=self.manager;csrf=self.request('/api/me')[1]['csrf'];cookie=self.cookie
         def confirm(employee):
             c=http.client.HTTPConnection('127.0.0.1',self.server.server_port)
-            body={'csrf':csrf,'action':'assignment','employee_id':employee,'revision':1,'indicators':self.ka,'reason':'동시 확정 시험'}
+            body={'csrf':csrf,'action':'assignment','employee_id':employee,'revision':2,'indicators':self.ka,'reason':'동시 확정 시험'}
             c.request('POST','/api/performance/office',json.dumps(body),{'Cookie':cookie,'Content-Type':'application/json','X-Requested-With':'PerformanceManager'})
             r=c.getresponse();status=r.status;r.read();c.close();return status
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:statuses=list(pool.map(confirm,['one','two']))

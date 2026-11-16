@@ -5,7 +5,7 @@ const perfStates={draft:'임시저장',submitted:'제출·검토대기',returned
 function clearPerformance(){perfTab='own';perfData=null;perfSequence++;perfSubmit=null;$('perf-content').replaceChildren();$('perf-summary').replaceChildren();$('perf-dialog').close();$('perf-fields').replaceChildren();$('perf-reason').value='';}
 function setupPerformance(){
   const select=$('perf-department'),old=select.value;select.replaceChildren();
-  const scope=current.user.role==='superadmin'?evalDepartments():evalDepartments().filter(d=>d.id===(isManager()&&perfTab!=='own'?current.user.admin_department_id:current.user.department_id));
+  const scope=current.user.role==='superadmin'?evalDepartments():catalog.departments.filter(d=>d.id===(isManager()&&perfTab!=='own'?current.user.admin_department_id:current.user.department_id));
   for(const d of scope)select.append(new Option(d.name,d.id));if(scope.some(d=>d.id===old))select.value=old;select.disabled=current.user.role!=='superadmin';
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   if(!$('perf-date').value){$('perf-date').value=today;$('perf-year').value=today.slice(0,4);}
@@ -55,7 +55,7 @@ function renderPerfRecords(data){
   const canManage=current.user.role==='superadmin'||current.user.role==='admin'&&current.user.admin_department_id===data.department_id;
   const total=data.items.length,all=data.items.flatMap(i=>i.records),summary=$('perf-summary');summary.append(node('strong','',`${total}개 지표`),node('span','',`임시저장 ${all.filter(r=>r.state==='draft').length} · 제출 ${all.filter(r=>r.state==='submitted').length} · 반려 ${all.filter(r=>r.state==='returned').length} · 확정 ${all.filter(r=>r.state==='approved').length}`));
   if(data.year_state.closed)summary.append(perfNote('확정 보관된 연도입니다. 수정하려면 관리자가 연도 마감을 해제해야 합니다.'));
-  if(!total)$('perf-content').append(perfNote('현재 근무지의 담당지표가 없습니다. 나의 지표에서 담당지표를 확인해 주세요.'));
+  if(!total)$('perf-content').append(perfNote('아직 배정된 담당지표가 없습니다. 접속은 정상적으로 완료되었습니다. 담당지표 수정 또는 관리자 배정을 통해 나중에 추가할 수 있습니다.'));
   for(const item of data.items){
     const plan=item.definition,card=node('article','perf-card'),heading=node('div','perf-heading');heading.append(node('h2','',item.indicator.name));card.append(heading);
     card.append(node('p','muted',`${item.period?.label||'관리기간 밖'} · 배점 ${plan.weight}점 · 제출기한 ${item.period?.due||'—'}`));

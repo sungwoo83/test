@@ -39,7 +39,7 @@ class ProfileFlow(unittest.TestCase):
         result=self.request('/api/register',{'employee_id':employee,'display_name':'테스트 직원 '+employee,'password':self.password,'department_id':self.a['id'],'indicators':self.ka if indicators is None else indicators})
         # Existing workflow fixtures represent already confirmed staff assignments.
         if result[0]==200:
-            with app.connect() as db:db.execute('UPDATE users SET assignment_confirmed=1 WHERE employee_id=?',(employee,))
+            with app.connect() as db:db.execute('UPDATE users SET indicators=?,assignment_confirmed=1 WHERE employee_id=?',(json.dumps(self.ka if indicators is None else indicators),employee))
         return result
     def test_full_flow_and_database_persistence(self):
         self.assertEqual(self.request('/api/me')[0],401)

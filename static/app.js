@@ -37,7 +37,7 @@ async function choices(prefix, values = []) {
   const seq=choiceSequence[prefix]=(choiceSequence[prefix]||0)+1;
   const list=$(prefix+'-indicators'),department=$(prefix+'-department').value;list.replaceChildren();updateCount(prefix);
   const items=indicators(department);
-  if(!items.length){list.append(node('p','empty',department==='SYS-PERFORMANCE'?'평가총괄 부서는 담당지표 없이 가입합니다.':'근무지를 먼저 선택해 주세요.'));return;}
+  if(!items.length){list.append(node('p','empty',department?'이 근무지는 현재 선택할 지표가 없습니다. 담당지표 없이 가입·저장할 수 있습니다.':'근무지를 먼저 선택해 주세요.'));return;}
   list.append(node('p','muted','배정 현황을 확인하고 있습니다.'));
   try{
     const result=await api('/api/assignment-options?'+new URLSearchParams({department_id:department}));
@@ -58,28 +58,31 @@ function setMode(value) {
   $('login-tab').setAttribute('aria-selected', String(!signup)); $('register-tab').setAttribute('aria-selected',String(signup));
   $('register-fields').hidden = !signup; $('signup-name').hidden=!signup; $('register-name').required=signup; $('register-name').disabled=!signup;
   $('auth-title').textContent = signup ? '성과관리, 함께 시작해요' : '다시 만나 반갑습니다';
-  $('auth-description').textContent = signup ? '이름, 근무지와 담당지표를 등록하면 준비가 끝납니다.' : '사번으로 로그인하고 나의 지표를 확인하세요.';
+  $('auth-description').textContent = signup ? '이름과 근무지를 등록하세요. 담당지표는 나중에 배정받아도 됩니다.' : '사번으로 로그인하고 나의 지표를 확인하세요.';
   $('auth-submit').textContent = signup ? '회원가입 후 시작하기 →' : '로그인 →';
   $('password').value = ''; $('password-confirm').value = '';
   $('password').minLength = signup ? 10 : 1; $('password').autocomplete = signup ? 'new-password' : 'current-password';
+  $('password-confirm').disabled=!signup;$('register-department').disabled=!signup;
   $('password-confirm').required = signup; $('register-department').required = signup; $('auth-error').textContent = '';
 }
 async function refresh(landing=false) {
   const firstLoad=!current,response=await api('/api/me');if(firstLoad)clearSessionViews();current=response;
-  if(landing){$('review-department').value='';location.hash=isManager()?'#review':'#dashboard';}
+  if(landing){$('review-department').value='';location.hash=isManager()?'#review':current.user.indicators.length?'#dashboard':'#home';}
   else if(firstLoad&&isManager()&&(!location.hash||location.hash==='#home'))location.hash='#review';
   render(); displayPage(); await setupManagement();
 }
 function render() {
   $('auth').hidden = true; $('home').hidden = false;
   const u = current.user, d = dept(u.department_id), items = indicators(u.department_id).filter(k => u.indicators.includes(k.id));
-  $('assignment-notice').hidden=Boolean(u.assignment_confirmed);
+  $('assignment-notice').hidden=Boolean(items.length&&u.assignment_confirmed);
+  $('assignment-notice').textContent=items.length?'선택한 담당지표는 관리자 배정 확인 후 입력할 수 있습니다. 이전 실적은 계속 조회할 수 있습니다.':'담당지표가 없어도 정상적으로 접속할 수 있습니다. 담당지표는 나중에 선택하거나 관리자에게 배정을 요청해 주세요.';
   $('header-employee').textContent = (u.display_name?u.display_name+' · ':'')+'사번 '+u.employee_id;
   $('department-name').textContent = d.name; $('department-group').textContent = d.group+' · 사번 '+u.employee_id;
   $('total-count').textContent = items.length;
   $('quant-count').textContent = items.filter(k => k.type === '계량').length;
   $('qual-count').textContent = items.filter(k => k.type === '비계량').length;
   const list = $('my-indicators'); list.replaceChildren();
+  if(!items.length)list.append(node('p','empty','아직 배정된 담당지표가 없습니다. 담당지표 수정 또는 관리자 배정을 통해 나중에 추가할 수 있습니다.'));
   for (const [i,k] of items.entries()) {
     const row = node('div','indicator-row'), text = node('div','indicator-copy');
     text.append(node('strong','',k.name),node('span','muted small',`${k.id} · ${k.category} · 편람 ${k.page}쪽`));
@@ -122,7 +125,7 @@ function openProfile(title) {
 }
 function toast(message) { $('toast').textContent=message; $('toast').hidden=false; setTimeout(() => $('toast').hidden=true, 4000); }
 $('login-tab').onclick = () => setMode('login'); $('register-tab').onclick = () => setMode('register');
-for (const prefix of ['register','change']) $(prefix+'-department').addEventListener('change', () => choices(prefix));
+$('change-department').addEventListener('change',()=>choices('change'));
 $('auth-form').addEventListener('submit', async event => {
   event.preventDefault(); if (saving) return;
   $('auth-error').textContent='';
@@ -130,12 +133,12 @@ $('auth-form').addEventListener('submit', async event => {
   if (mode === 'register' && $('password').value !== $('password-confirm').value) { $('auth-error').textContent='비밀번호 확인이 일치하지 않습니다.'; return; }
   saving=true; $('auth-submit').disabled=true;
   try {
-    await api('/api/'+mode,{employee_id:$('employee').value.trim(),password:$('password').value,...(mode==='register'?{display_name:$('register-name').value.trim()}:{}),department_id:$('register-department').value,indicators:selected('register')});
+    await api('/api/'+mode,{employee_id:$('employee').value.trim(),password:$('password').value,...(mode==='register'?{display_name:$('register-name').value.trim(),department_id:$('register-department').value}:{})});
     $('password').value=''; $('password-confirm').value=''; $('register-name').value=''; await refresh(true);
-  } catch(e) { $('auth-error').textContent=e.message;if(mode==='register')await choices('register',selected('register')); }
+  } catch(e) { $('auth-error').textContent=e.message; }
   finally { saving=false; $('auth-submit').disabled=false; }
 });
-$('change-workplace').onclick=()=>openProfile('근무지 변경'); $('edit-indicators').onclick=()=>openProfile('담당지표 수정');
+$('change-workplace').onclick=()=>openProfile('근무지 변경'); $('edit-indicators').onclick=()=>openProfile('담당지표 선택·수정');
 $('close-dialog').onclick=$('cancel-change').onclick=()=>$('profile-dialog').close();
 $('profile-form').addEventListener('submit',async event=>{
   event.preventDefault(); if(saving) return; $('profile-error').textContent='';
@@ -147,7 +150,7 @@ $('profile-form').addEventListener('submit',async event=>{
 $('logout').onclick=async()=>{ try { await api('/api/logout',{csrf:current.csrf}); current=null;clearSessionViews(); $('home').hidden=true; $('auth').hidden=false; setMode('login'); } catch(e) { toast(e.message); } };
 async function start(){
   $('auth-submit').disabled=true;
-  try { catalog=await api('/api/catalog'); $('demo-notice').hidden=!catalog.demo; $('home-demo-notice').hidden=!catalog.demo; for(const prefix of ['register','change']) { populateSelect(prefix+'-department'); choices(prefix); }
+  try { catalog=await api('/api/catalog'); $('demo-notice').hidden=!catalog.demo; $('home-demo-notice').hidden=!catalog.demo; for(const prefix of ['register','change'])populateSelect(prefix+'-department');choices('change');
     try { await refresh(); } catch(e) { if(e.message !== '로그인이 필요합니다.') $('auth-error').textContent=e.message; }
   } catch(e){ $('auth-error').textContent='서버에 연결할 수 없습니다. 새로고침해 주세요.'; return; }
   $('auth-submit').disabled=false;
@@ -167,7 +170,7 @@ async function setupManagement(){
   $('scope-description').textContent=isManager()?"본인의 실적을 입력합니다. 직원 실적은 ‘월별 실적 확인’에서 관리하세요.":'본인 근무지의 담당지표 실적을 입력합니다.';
   const select=$('monthly-department'),old=select.value;
   select.replaceChildren();
-  const scope=u.role==='superadmin'?evalDepartments():evalDepartments().filter(d=>d.id===(u.role==='admin'?u.admin_department_id:u.department_id));
+  const scope=u.role==='superadmin'?evalDepartments():catalog.departments.filter(d=>d.id===(u.role==='admin'?u.admin_department_id:u.department_id));
   for(const d of scope)select.append(new Option(d.name,d.id));
   if(scope.some(d=>d.id===old))select.value=old;
   select.disabled=u.role!=='superadmin';
@@ -187,8 +190,8 @@ async function loadMonthly(){
   $('monthly-error').textContent='';monthly=null;
   $('close-month').hidden=$('reopen-month').hidden=true;
   $('monthly-rows').replaceChildren();$('period-status').textContent='';
-  if(!$('monthly-department').value){
-    $('monthly-error').textContent='현재 소속에는 평가대상 지표가 없습니다. 운영 권한은 별도 지정됩니다.';return;
+  if(!$('monthly-department').value||dept($('monthly-department').value)?.kind==='운영'){
+    const row=node('tr'),cell=node('td','empty','현재 근무지에 입력할 담당지표가 없습니다. 담당지표 없이도 다른 메뉴를 이용할 수 있습니다.');cell.colSpan=8;row.append(cell);$('monthly-rows').append(row);return;
   }
   try{
     const context=monthContext(),q=new URLSearchParams(context),response=await api('/api/monthly?'+q);
@@ -198,6 +201,7 @@ async function loadMonthly(){
     $('period-status').textContent=closed?'마감':'입력 가능';$('period-status').className='tag '+(closed?'closed-tag':'open-tag');
     $('close-month').hidden=!isManager()||closed;
     $('reopen-month').hidden=!isManager()||!closed;
+    if(!monthly.items.length){const row=node('tr'),cell=node('td','empty','아직 배정된 담당지표가 없습니다. 관리자 배정 후 실적을 입력할 수 있습니다.');cell.colSpan=8;row.append(cell);$('monthly-rows').append(row);$('period-status').textContent='담당지표 없음';}
     for(const item of monthly.items){
       const k=item.indicator,r=item.record,config=r?JSON.parse(r.snapshot):item.settings,row=node('tr'),name=node('td','',k.name);
       name.append(node('small','',k.type+(config.unit?' · '+config.unit:'')+(r?' · 작성 당시: '+JSON.parse(r.snapshot).name:'')));
