@@ -10,7 +10,7 @@ function setupPerformance(){
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   if(!$('perf-date').value){$('perf-date').value=today;$('perf-year').value=today.slice(0,4);}
   for(const el of document.querySelectorAll('.perf-manager'))el.hidden=!isManager();$('perf-ops-tab').hidden=$('perf-bundle-tab').hidden=$('perf-overview-tab').hidden=current.user.role!=='superadmin';
-  if((!isManager()&&['review','annual','accounts','owners','audit','operations','overview','office','bundle'].includes(perfTab))||(current.user.role!=='superadmin'&&['overview','bundle'].includes(perfTab)))perfTab='own';
+  if((!isManager()&&['review','annual','accounts','owners','audit','operations','overview','bundle'].includes(perfTab))||(current.user.role!=='superadmin'&&['overview','bundle'].includes(perfTab)))perfTab='own';
   if(['#performance','#home'].includes(location.hash))loadPerformance();
 }
 function perfContext(){return {department_id:$('perf-department').value,year:Number($('perf-year').value),date:$('perf-date').value};}
@@ -30,14 +30,14 @@ function perfDialog(title,build,save,reason=''){
 }
 async function perfPost(path,data){return api('/api/performance/'+path,{...perfContext(),...data,reason:data.reason||$('perf-reason').value||'기간별 실적 확인',csrf:current.csrf});}
 async function loadPerformance(){
-  if(!current)return;const sequence=++perfSequence,csrf=current.csrf;$('perf-error').textContent='';$('perf-refresh').disabled=true;
-  const paths={office:'/office',bundle:'/overview',overview:'/overview',own:'',review:'',annual:'/annual',accounts:'/users',owners:'/users',tasks:'/assignments',history:'/history',audit:'/audit',operations:'/operations'};
+  if(!current)return;if(['office','tasks'].includes(perfTab))perfTab='own';const sequence=++perfSequence,csrf=current.csrf;$('perf-error').textContent='';$('perf-refresh').disabled=true;
+  const paths={bundle:'/overview',overview:'/overview',own:'',review:'',annual:'/annual',accounts:'/users',owners:'/users',history:'/history',audit:'/audit',operations:'/operations'};
   for(const b of document.querySelectorAll('#perf-tabs button'))b.setAttribute('aria-pressed',String(b.dataset.tab===perfTab));
   const exportKind=perfTab==='annual'?'annual':perfTab==='audit'?'audit':'records';$('perf-export').hidden=!isManager()||!['review','annual','audit'].includes(perfTab);$('perf-export').href='/api/performance.xlsx?'+new URLSearchParams({...perfContext(),kind:exportKind});$('perf-copy').hidden=current.user.role!=='superadmin';
   try{
     const response=await api('/api/performance'+paths[perfTab]+'?'+new URLSearchParams({...perfContext(),view:perfTab}));
     if(sequence!==perfSequence||current?.csrf!==csrf)return;perfData=response;$('perf-content').replaceChildren();$('perf-summary').replaceChildren();
-    if(perfTab==='office')renderOffice(response);else if(perfTab==='bundle')renderBundle();else if(perfTab==='overview')renderPerfOverview(response);else if(['own','review'].includes(perfTab))renderPerfRecords(response);else if(perfTab==='annual')renderPerfAnnual(response);else if(perfTab==='accounts')renderPerfAccounts(response);else if(perfTab==='owners')renderPerfOwners(response);else if(perfTab==='tasks')renderPerfTasks(response);else if(perfTab==='history')renderPerfHistory(response);else if(perfTab==='audit')renderPerfAudit(response);else renderPerfOps(response);
+    if(perfTab==='bundle')renderBundle();else if(perfTab==='overview')renderPerfOverview(response);else if(['own','review'].includes(perfTab))renderPerfRecords(response);else if(perfTab==='annual')renderPerfAnnual(response);else if(perfTab==='accounts')renderPerfAccounts(response);else if(perfTab==='owners')renderPerfOwners(response);else if(perfTab==='history')renderPerfHistory(response);else if(perfTab==='audit')renderPerfAudit(response);else renderPerfOps(response);
   }catch(e){if(sequence===perfSequence){perfData=null;$('perf-content').replaceChildren();$('perf-error').textContent=e.message;}}
   finally{if(sequence===perfSequence)$('perf-refresh').disabled=false;}
 }
@@ -160,16 +160,11 @@ function renderPerfAnnual(data){
 function editPerfRating(item){
   let evaluator,grade,adjustment,excluded;
   perfDialog(item.indicator.name+' · 최종 평가',box=>{
-    box.append(perfNote('평가자를 지정한 뒤 해당 평가자가 내 평가 요청에서 등급을 입력합니다. 결측·가감점은 근거를 남겨야 합니다.'));
+    box.append(perfNote('최종 평가에서 평가자·등급·가감점·결측 사유를 관리합니다. 등급은 지정된 평가자 본인이 입력하며 결측·가감점은 근거를 남겨야 합니다.'));
     evaluator=perfInput(box,'평가자 사번',item.rating.evaluator||current.user.employee_id);grade=perfInput(box,'평가등급(지정 평가자 본인 입력)',item.rating.grade||'','text',[['','미평가'],...['S','A','B','C','D'].map(x=>[x,x])]);grade.disabled=item.definition.mode!=='text';adjustment=perfInput(box,'가감점',item.rating.adjustment||'0','number');excluded=perfInput(box,'결측으로 제외',Boolean(item.rating.excluded),'checkbox');
     const c=item.aggregate.calculation;if(c)box.append(perfTable(['세부항목','실적','목표','득점'],c.components.map(r=>[r.name,r.actual,r.target,r.score])));
     box.append(perfNote(item.reason));
   },()=>perfPost('rating',{indicator_id:item.indicator.id,revision:item.rating.revision,evaluator:evaluator.value,grade:grade.value,adjustment:adjustment.value,excluded:excluded.checked}));
-}
-function renderPerfTasks(data){
-  if(!data.tasks.length)$('perf-content').append(perfNote('지정된 평가 요청이 없습니다.'));
-  for(const task of data.tasks){const r=task.rating,card=node('article','perf-card');card.append(node('h2','',`${r.year}년 · ${task.records[0]?.definition.name||r.indicator}`));for(const record of task.records)card.append(node('p','',record.narrative||'내용 없음'));
-    card.append(perfButton('등급 입력',()=>{let grade;perfDialog('지정된 지표 등급 입력',box=>{grade=perfInput(box,'평가등급',r.grade||'A','text',['S','A','B','C','D'].map(x=>[x,x]));},()=>perfPost('grade',{department_id:r.department,year:r.year,indicator_id:r.indicator,revision:r.revision,grade:grade.value}));}));$('perf-content').append(card);}
 }
 function renderPerfOwners(data){
   const dep=perfContext().department_id,people=data.users.filter(p=>p.department_id===dep);
@@ -270,20 +265,10 @@ async function adjustIndicatorOwner(indicator,people){
   }catch(e){toast(e.message);}
 }
 
-function renderOffice(data){
-  $('perf-summary').append(node('strong','',`${data.as_of} 기준 근무지 공식 제출`),node('span','',data.ready?'제출 가능한 자료':'기준·담당 배정·실적 확정을 확인하세요.'));
-  const rows=data.items.map(i=>{const c=i.aggregate.calculation||{};return [i.indicator.name,i.definition.weight,c.effective_weight,c.score,c.percent,i.aggregate.reason,i.legacy.length];});
-  $('perf-content').append(perfTable(['지표','가중치','유효배점','득점','득점률(%)','자료 상태','이전 월별 건수'],rows),perfNote('직원 확정 자료와 계산 기준·증빙을 하나의 제출본으로 고정합니다. 제출 후 원본은 잠기며 수정하려면 공식 제출을 취소해야 합니다. 이전 월별 환산점수는 원시 실적으로 임의 합산하지 않습니다.'));
-  const submit=perfButton('근무지 공식 실적 제출',()=>{const decisions=[];perfDialog('근무지 공식 제출본 확정',box=>{
-    box.append(perfNote('선택 기준일의 확정 자료를 고정합니다. 이전 월별 자료가 있으면 새 누계에 포함했는지 또는 참고자료인지 근거를 남겨 주세요.'));
-    for(const item of data.items.filter(i=>i.legacy.length)){const row={id:item.indicator.id};box.append(node('h3','',item.indicator.name));row.mode=perfInput(box,'이전 자료 처리','included','text',[['included','확정 누적 기록에 반영 완료'],['reference','원본 참고자료로 보관(반영하지 않는 사유 필수)']]);row.record=perfInput(box,'누계에 반영한 확정 기록','','text',item.aggregate.sources.map(id=>[String(id),'실적 '+id]));row.reason=perfInput(box,'이전 자료 검토 근거','','textarea');decisions.push(row);}
-  },()=>{const legacy_dispositions={};for(const d of decisions)legacy_dispositions[d.id]={mode:d.mode.value,record_id:Number(d.record.value),reason:d.reason.value};return perfPost('office',{action:'submit',version:data.version,legacy_dispositions});});},true);submit.disabled=!data.ready||data.submissions.some(s=>s.as_of===data.as_of&&s.state==='submitted');$('perf-content').append(submit);
-  $('perf-content').append(node('h2','','공식 제출 이력'),perfTable(['기준일','버전','상태','제출자','처리'],data.submissions.map(s=>{const buttons=node('div','perf-actions'),link=node('a','secondary','확정본 XLSX');link.href='/api/performance.xlsx?'+new URLSearchParams({...perfContext(),kind:'office',submission_id:s.id});buttons.append(link);if(s.state==='submitted')buttons.append(perfButton('제출 취소',()=>perfReasonDialog('근무지 공식 제출 취소','office',{action:'withdraw',submission_id:s.id})));return [s.as_of,s.version,s.state==='submitted'?'제출':'취소',s.actor,buttons];})));
-}
 function renderBundle(){
   const box=node('article','perf-card');box.append(node('h2','','공문 검증용 증빙 일괄 다운로드'),perfNote('수퍼관리자만 다운로드할 수 있습니다. ZIP에 원본 증빙, 부서별 목록 XLSX, 검증 의뢰 공문 초안 DOCX를 함께 제공합니다. 공문 검증부서는 공문 검증부서 분류 설정에서 지정합니다. 시스템에서 검증 승인 처리는 하지 않습니다.'));
   box.append(perfButton('공문 검증부서 분류 설정',editEvidenceRouting));
-  const department=perfInput(box,'취합 대상 근무지','all','text',[['all','공단 전체'],...evalDepartments().map(d=>[d.id,d.name])]);const group=perfInput(box,'묶음 기준','validator','text',[['department','원소속 부서별'],['validator','공문 검증부서별 → 원소속 부서별']]);const state=perfInput(box,'포함할 자료','submitted','text',[['submitted','제출·확정 실적 및 마감된 이전 월별'],['official','근무지 공식 제출본에 포함된 자료'],['all','임시저장을 포함한 모든 증빙']]);
+  const department=perfInput(box,'취합 대상 근무지','all','text',[['all','공단 전체'],...evalDepartments().map(d=>[d.id,d.name])]);const group=perfInput(box,'묶음 기준','validator','text',[['department','원소속 부서별'],['validator','공문 검증부서별 → 원소속 부서별']]);const state=perfInput(box,'포함할 자료','submitted','text',[['submitted','제출·확정 실적 및 마감된 이전 월별'],['official','이전 공식 제출본 보관자료'],['all','임시저장을 포함한 모든 증빙']]);
   const button=perfButton('증빙 ZIP 다운로드',async()=>{button.disabled=true;$('perf-error').textContent='';try{const response=await fetch('/api/evidence-bundle.zip?'+new URLSearchParams({year:perfContext().year,department_id:department.value,group_by:group.value,state:state.value}));if(!response.ok){const result=await response.json();throw Error(result.error);}const url=URL.createObjectURL(await response.blob()),a=node('a');a.href=url;a.download=`실적증빙_${perfContext().year}_${group.value}.zip`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){$('perf-error').textContent=e.message;}finally{button.disabled=false;}},true);box.append(button);$('perf-content').append(box);
 }
 async function editEvidenceRouting(){
