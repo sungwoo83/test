@@ -10,7 +10,7 @@ function setupPerformance(){
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   if(!$('perf-date').value){$('perf-date').value=today;$('perf-year').value=today.slice(0,4);}
   for(const el of document.querySelectorAll('.perf-manager'))el.hidden=!isManager();$('perf-ops-tab').hidden=$('perf-bundle-tab').hidden=$('perf-overview-tab').hidden=current.user.role!=='superadmin';
-  if((!isManager()&&['review','annual','accounts','audit','operations','overview','office','bundle'].includes(perfTab))||(current.user.role!=='superadmin'&&['overview','bundle'].includes(perfTab)))perfTab='own';
+  if((!isManager()&&['review','annual','accounts','owners','audit','operations','overview','office','bundle'].includes(perfTab))||(current.user.role!=='superadmin'&&['overview','bundle'].includes(perfTab)))perfTab='own';
   if(['#performance','#home'].includes(location.hash))loadPerformance();
 }
 function perfContext(){return {department_id:$('perf-department').value,year:Number($('perf-year').value),date:$('perf-date').value};}
@@ -31,13 +31,13 @@ function perfDialog(title,build,save,reason=''){
 async function perfPost(path,data){return api('/api/performance/'+path,{...perfContext(),...data,reason:data.reason||$('perf-reason').value||'기간별 실적 확인',csrf:current.csrf});}
 async function loadPerformance(){
   if(!current)return;const sequence=++perfSequence,csrf=current.csrf;$('perf-error').textContent='';$('perf-refresh').disabled=true;
-  const paths={office:'/office',bundle:'/overview',overview:'/overview',own:'',review:'',annual:'/annual',accounts:'/users',tasks:'/assignments',history:'/history',audit:'/audit',operations:'/operations'};
+  const paths={office:'/office',bundle:'/overview',overview:'/overview',own:'',review:'',annual:'/annual',accounts:'/users',owners:'/users',tasks:'/assignments',history:'/history',audit:'/audit',operations:'/operations'};
   for(const b of document.querySelectorAll('#perf-tabs button'))b.setAttribute('aria-pressed',String(b.dataset.tab===perfTab));
   const exportKind=perfTab==='annual'?'annual':perfTab==='audit'?'audit':'records';$('perf-export').hidden=!isManager()||!['review','annual','audit'].includes(perfTab);$('perf-export').href='/api/performance.xlsx?'+new URLSearchParams({...perfContext(),kind:exportKind});$('perf-copy').hidden=current.user.role!=='superadmin';
   try{
     const response=await api('/api/performance'+paths[perfTab]+'?'+new URLSearchParams({...perfContext(),view:perfTab}));
     if(sequence!==perfSequence||current?.csrf!==csrf)return;perfData=response;$('perf-content').replaceChildren();$('perf-summary').replaceChildren();
-    if(perfTab==='office')renderOffice(response);else if(perfTab==='bundle')renderBundle();else if(perfTab==='overview')renderPerfOverview(response);else if(['own','review'].includes(perfTab))renderPerfRecords(response);else if(perfTab==='annual')renderPerfAnnual(response);else if(perfTab==='accounts')renderPerfAccounts(response);else if(perfTab==='tasks')renderPerfTasks(response);else if(perfTab==='history')renderPerfHistory(response);else if(perfTab==='audit')renderPerfAudit(response);else renderPerfOps(response);
+    if(perfTab==='office')renderOffice(response);else if(perfTab==='bundle')renderBundle();else if(perfTab==='overview')renderPerfOverview(response);else if(['own','review'].includes(perfTab))renderPerfRecords(response);else if(perfTab==='annual')renderPerfAnnual(response);else if(perfTab==='accounts')renderPerfAccounts(response);else if(perfTab==='owners')renderPerfOwners(response);else if(perfTab==='tasks')renderPerfTasks(response);else if(perfTab==='history')renderPerfHistory(response);else if(perfTab==='audit')renderPerfAudit(response);else renderPerfOps(response);
   }catch(e){if(sequence===perfSequence){perfData=null;$('perf-content').replaceChildren();$('perf-error').textContent=e.message;}}
   finally{if(sequence===perfSequence)$('perf-refresh').disabled=false;}
 }
@@ -171,8 +171,22 @@ function renderPerfTasks(data){
   for(const task of data.tasks){const r=task.rating,card=node('article','perf-card');card.append(node('h2','',`${r.year}년 · ${task.records[0]?.definition.name||r.indicator}`));for(const record of task.records)card.append(node('p','',record.narrative||'내용 없음'));
     card.append(perfButton('등급 입력',()=>{let grade;perfDialog('지정된 지표 등급 입력',box=>{grade=perfInput(box,'평가등급',r.grade||'A','text',['S','A','B','C','D'].map(x=>[x,x]));},()=>perfPost('grade',{department_id:r.department,year:r.year,indicator_id:r.indicator,revision:r.revision,grade:grade.value}));}));$('perf-content').append(card);}
 }
+function renderPerfOwners(data){
+  const dep=perfContext().department_id,people=data.users.filter(p=>p.department_id===dep);
+  $('perf-summary').append(node('strong','',departmentLabel(dep)+' · 지표 담당자 관리'));
+  $('perf-content').append(node('h2','','근무지별 지표 담당자'),perfNote('조회한 근무지의 지표별 담당자를 이름·사번으로 확인하고 지정·변경할 수 있습니다. 관리자는 지정된 관리 근무지를, 수퍼관리자는 전체 근무지를 관리합니다. 이전 실적·증빙의 작성자는 보존됩니다.'));
+  const rows=indicators(dep).map(k=>{
+    const matches=p=>JSON.parse(p.indicators||'[]').includes(k.id),owners=people.filter(p=>p.assignment_confirmed&&matches(p)),pending=people.filter(p=>!p.assignment_confirmed&&matches(p));
+    const name=p=>(p.display_name||'이름 미등록')+' ('+p.employee_id+')'+(p.account_status==='active'?'':' · 비활성');
+    return [departmentLabel(dep),k.name,owners.map(name).join(', ')||'미배정',pending.map(name).join(', ')||'없음',perfButton('담당자 지정·변경',()=>adjustIndicatorOwner(k,people))];
+  });
+  $('perf-content').append(perfTable(['근무지','지표','확정 담당자 (이름·사번)','배정 확인 대기','처리'],rows));
+  if(!rows.length)$('perf-content').append(perfNote('선택한 근무지에 등록된 지표가 없습니다. 상단에서 근무지를 확인해 주세요.'));
+  const pending=people.filter(p=>!p.assignment_confirmed);
+  if(pending.length)$('perf-content').append(node('h2','','직원별 배정 확인 대기'),perfTable(['근무지','이름','사번','신청 지표 수','처리'],pending.map(p=>[departmentLabel(dep),p.display_name,p.employee_id,JSON.parse(p.indicators||'[]').length,perfButton('담당지표 배정·확정',()=>confirmAssignment(p))])));
+}
 function renderPerfAccounts(data){
-  $('perf-content').append(node('h2','','지표 담당자 조정'),perfNote('같은 근무지의 지표는 한 직원에게 배정합니다. 기존 중복 배정도 아래에서 정리할 수 있습니다. 실적·증빙의 원래 작성자는 보존됩니다.'),perfTable(['지표','확정 담당자','처리'],indicators(perfContext().department_id).map(k=>{const owners=data.users.filter(p=>p.department_id===perfContext().department_id&&p.assignment_confirmed&&JSON.parse(p.indicators||'[]').includes(k.id));return [k.name,owners.map(p=>p.display_name+' ('+p.employee_id+')').join(', ')||'미배정',perfButton('담당자 조정',()=>adjustIndicatorOwner(k,data.users))];})),node('h2','','직원별 배정·계정 관리'));
+  $('perf-content').append(perfButton('지표 담당자 관리 열기',()=>{perfTab='owners';setupPerformance();}));
 
   const rows=data.users.map(person=>{const actions=node('div','perf-actions');actions.append(perfButton('담당지표 배정·확정',()=>confirmAssignment(person)));if(current.user.role!=='superadmin'&&person.role!=='employee'){actions.append(node('span','muted','수퍼관리자 관리 대상'));return [person.employee_id,person.display_name,departmentLabel(person.department_id),roleLabels[person.role],(person.account_status==='active'?'활성':'비활성')+' · '+(person.assignment_confirmed?'배정 확정':'배정 확인 대기'),actions];}for(const [action,label]of [['reset-password','비밀번호 초기화'],['status','활성·비활성'],['handover','담당지표 인계'],...(current.user.role==='superadmin'?[['transfer','근무지 이동']]:[])])actions.append(perfButton(label,()=>editPerfAccount(person,action,data.users)));return [person.employee_id,person.display_name,departmentLabel(person.department_id),roleLabels[person.role],(person.account_status==='active'?'활성':'비활성')+' · '+(person.assignment_confirmed?'배정 확정':'배정 확인 대기'),actions];});$('perf-content').append(perfTable(['사번','이름','근무지','권한','계정상태','처리'],rows));
 }

@@ -25,6 +25,6 @@
 
 .assignment-disabled{opacity:.65;background:#f1f4f5;cursor:not-allowed}.assignment-disabled .check-copy small{color:#475569}.workspace-profile{margin-bottom:24px}.workspace-profile .panel{margin-bottom:24px}
 
-.workspace-indicators>summary{font-weight:700;cursor:pointer;padding:4px 0}.workspace-indicators[open]>summary{margin-bottom:20px}
+
 
 .profile-card{flex-wrap:wrap}.profile-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}@media(max-width:900px){.profile-actions{width:100%}.profile-card .profile-actions button{width:auto;flex:1}}
