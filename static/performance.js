@@ -55,7 +55,7 @@ function renderPerfRecords(data){
   const canManage=current.user.role==='superadmin'||current.user.role==='admin'&&current.user.admin_department_id===data.department_id;
   const total=data.items.length,all=data.items.flatMap(i=>i.records),summary=$('perf-summary');summary.append(node('strong','',`${total}개 지표`),node('span','',`임시저장 ${all.filter(r=>r.state==='draft').length} · 제출 ${all.filter(r=>r.state==='submitted').length} · 반려 ${all.filter(r=>r.state==='returned').length} · 확정 ${all.filter(r=>r.state==='approved').length}`));
   if(data.year_state.closed)summary.append(perfNote('확정 보관된 연도입니다. 수정하려면 관리자가 연도 마감을 해제해야 합니다.'));
-  if(!total)$('perf-content').append(perfNote('현재 근무지의 담당지표가 없습니다. 나의 업무에서 담당지표를 확인해 주세요.'));
+  if(!total)$('perf-content').append(perfNote('현재 근무지의 담당지표가 없습니다. 나의 지표에서 담당지표를 확인해 주세요.'));
   for(const item of data.items){
     const plan=item.definition,card=node('article','perf-card'),heading=node('div','perf-heading');heading.append(node('h2','',item.indicator.name));card.append(heading);
     card.append(node('p','muted',`${item.period?.label||'관리기간 밖'} · 배점 ${plan.weight}점 · 제출기한 ${item.period?.due||'—'}`));

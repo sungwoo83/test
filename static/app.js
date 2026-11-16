@@ -58,7 +58,7 @@ function setMode(value) {
   $('login-tab').setAttribute('aria-selected', String(!signup)); $('register-tab').setAttribute('aria-selected',String(signup));
   $('register-fields').hidden = !signup; $('signup-name').hidden=!signup; $('register-name').required=signup; $('register-name').disabled=!signup;
   $('auth-title').textContent = signup ? '성과관리, 함께 시작해요' : '다시 만나 반갑습니다';
-  $('auth-description').textContent = signup ? '이름, 근무지와 담당지표를 등록하면 준비가 끝납니다.' : '사번으로 로그인하고 나의 업무를 확인하세요.';
+  $('auth-description').textContent = signup ? '이름, 근무지와 담당지표를 등록하면 준비가 끝납니다.' : '사번으로 로그인하고 나의 지표를 확인하세요.';
   $('auth-submit').textContent = signup ? '회원가입 후 시작하기 →' : '로그인 →';
   $('password').value = ''; $('password-confirm').value = '';
   $('password').minLength = signup ? 10 : 1; $('password').autocomplete = signup ? 'new-password' : 'current-password';
@@ -90,14 +90,14 @@ function render() {
 function displayPage(navigate=false){
   if(!current)return;
   const routes={
-    '#performance':{view:'performance-view',nav:'work-nav',label:'나의 업무'},
+    '#performance':{view:'performance-view',nav:'work-nav',label:'나의 지표'},
     '#dashboard':{view:'dashboard-view',nav:'dashboard-nav',label:'성과 대시보드'},
     '#monthly-panel':{view:'monthly-view',nav:'monthly-nav',label:'월별 실적 관리'},
     '#review':{view:'review-view',nav:'review-nav',label:'월별 실적 확인'},
     '#roles':{view:'roles-view',nav:'roles-nav',label:'관리자 권한 제어'},
     '#super-panel':{view:'admin-view',nav:'super-nav',label:'전체 지표 관리'}
   };
-  const homeRoute={view:'performance-view',nav:'work-nav',label:'나의 업무'};
+  const homeRoute={view:'performance-view',nav:'work-nav',label:'나의 지표'};
   let route=routes[location.hash]||(location.hash==='#home'?homeRoute:routes['#dashboard']);
   if(['admin-view','roles-view'].includes(route.view)&&current.user.role!=='superadmin')route=homeRoute;
   if(route.view==='review-view'&&!isManager())route=homeRoute;
